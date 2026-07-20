@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
-import { HiMenuAlt4, HiX } from "react-icons/hi";
+import { HiMenuAlt4 } from "react-icons/hi";
 import { LogoWordmark } from "./Logo";
+import MobileMenu from "./MobileMenu";
 import { NAV_LINKS } from "../data/site";
 
-export default function Navbar() {
+interface NavbarProps {
+  onMenuOpenChange?: (open: boolean) => void;
+}
+
+export default function Navbar({ onMenuOpenChange }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -17,8 +21,8 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
-  }, [open]);
+    onMenuOpenChange?.(open);
+  }, [open, onMenuOpenChange]);
 
   return (
     <header
@@ -64,50 +68,7 @@ export default function Navbar() {
         </button>
       </div>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col bg-obsidian lg:hidden"
-          >
-            <div className="container-lux flex h-20 items-center justify-between">
-              <LogoWordmark />
-              <button aria-label="Cerrar menú" onClick={() => setOpen(false)} className="text-ivory">
-                <HiX size={28} />
-              </button>
-            </div>
-            <nav className="flex flex-1 flex-col items-center justify-center gap-8">
-              {NAV_LINKS.map((link, i) => (
-                <motion.div
-                  key={link.to}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 * i }}
-                >
-                  <NavLink
-                    to={link.to}
-                    onClick={() => setOpen(false)}
-                    className={({ isActive }) =>
-                      `font-display text-3xl ${isActive ? "text-gold" : "text-ivory"}`
-                    }
-                  >
-                    {link.label}
-                  </NavLink>
-                </motion.div>
-              ))}
-              <Link
-                to="/reservar"
-                onClick={() => setOpen(false)}
-                className="btn-gold mt-4"
-              >
-                Reservar cita
-              </Link>
-            </nav>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <MobileMenu open={open} onClose={() => setOpen(false)} />
     </header>
   );
 }

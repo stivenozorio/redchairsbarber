@@ -1,7 +1,9 @@
 import { FaWhatsapp } from "react-icons/fa";
 import { WHATSAPP_LINK } from "../data/site";
 
-export default function WhatsAppButton() {
+export default function WhatsAppButton({ hidden = false }: { hidden?: boolean }) {
+  if (hidden) return null;
+
   return (
     <a
       href={WHATSAPP_LINK}

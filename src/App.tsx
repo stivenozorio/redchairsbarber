@@ -1,5 +1,5 @@
 import { Routes, Route, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import WhatsAppButton from "./components/WhatsAppButton";
@@ -20,10 +20,12 @@ function ScrollToTop() {
 }
 
 function App() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-obsidian text-ivory">
       <ScrollToTop />
-      <Navbar />
+      <Navbar onMenuOpenChange={setMenuOpen} />
       <main>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -36,7 +38,7 @@ function App() {
         </Routes>
       </main>
       <Footer />
-      <WhatsAppButton />
+      <WhatsAppButton hidden={menuOpen} />
     </div>
   );
 }
