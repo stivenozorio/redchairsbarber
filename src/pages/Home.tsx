@@ -108,15 +108,15 @@ export default function Home() {
               <span key={t}>{t}</span>
             ))}
           </motion.div>
-        </div>
 
-        <div className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2">
-          <div className="h-10 w-6 rounded-full border border-gold/40 p-1">
-            <motion.div
-              animate={{ y: [0, 12, 0] }}
-              transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-              className="h-1.5 w-1.5 rounded-full bg-gold"
-            />
+          <div className="mt-10 sm:mt-12">
+            <div className="h-10 w-6 rounded-full border border-gold/40 p-1">
+              <motion.div
+                animate={{ y: [0, 12, 0] }}
+                transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                className="h-1.5 w-1.5 rounded-full bg-gold"
+              />
+            </div>
           </div>
         </div>
       </section>

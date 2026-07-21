@@ -89,9 +89,9 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
       },
       {
         name: "Mascarilla Express",
-        price: "$12.000",
-        description: "Incluye masaje relajante.",
-        includes: ["Mascarilla a elección (carbono activado, aloe vera o dorada)"],
+        price: "$15.000",
+        description:
+          "Mascarilla aplicada en toda la cara para limpieza profunda, hidratación y revitalización facial.",
       },
       {
         name: "Masaje Ocular",
@@ -117,7 +117,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     title: "Extras",
     subtitle: "Detalles que marcan la diferencia",
     services: [
-      { name: "Cejas", price: "$4.000", description: "Se realiza con cuchilla." },
+      { name: "Cejas", price: "$5.000", description: "Se realiza con cuchilla." },
       { name: "Lavado Capilar", price: "$5.000" },
     ],
   },
