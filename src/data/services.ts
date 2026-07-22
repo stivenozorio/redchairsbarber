@@ -105,11 +105,11 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     title: "Combos",
     subtitle: "Todo lo que necesitas",
     services: [
-      { name: "Corte + Cejas", price: "$24.000" },
-      { name: "Corte Plus + Cejas", price: "$34.000" },
+      { name: "Corte + Cejas", price: "$25.000" },
+      { name: "Corte Plus + Cejas", price: "$35.000" },
       { name: "Corte + Barba", price: "$30.000" },
       { name: "Corte Plus + Barba", price: "$40.000" },
-      { name: "Corte + Barba + Cejas", price: "$34.000" },
+      { name: "Corte + Barba + Cejas", price: "$35.000" },
     ],
   },
   {
@@ -153,7 +153,7 @@ export const VIP_EXPERIENCES: Service[] = [
   },
   {
     name: "Experiencia VIP + Barba + Cejas",
-    price: "$80.000",
+    price: "$81.000",
     description: "Corte Plus + Spa Facial + Lavado Capilar + Barba Premium + Cejas",
   },
 ];

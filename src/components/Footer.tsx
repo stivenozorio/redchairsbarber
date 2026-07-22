@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { FaInstagram, FaWhatsapp } from "react-icons/fa";
+import { FaTiktok } from "react-icons/fa6";
 import { LogoWordmark } from "./Logo";
 import {
   ADDRESS,
@@ -8,6 +9,8 @@ import {
   INSTAGRAM_LINK,
   NAV_LINKS,
   PHONE_DISPLAY,
+  TIKTOK_HANDLE,
+  TIKTOK_LINK,
   WHATSAPP_LINK,
 } from "../data/site";
 
@@ -82,9 +85,19 @@ export default function Footer() {
             >
               <FaInstagram />
             </a>
+            <a
+              href={TIKTOK_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="TikTok"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-gold/30 text-gold transition-colors hover:bg-gold hover:text-obsidian"
+            >
+              <FaTiktok />
+            </a>
           </div>
           <p className="mt-5 text-sm text-bone/70">{PHONE_DISPLAY}</p>
           <p className="text-sm text-bone/70">{INSTAGRAM_HANDLE}</p>
+          <p className="text-sm text-bone/70">{TIKTOK_HANDLE}</p>
         </div>
       </div>
 

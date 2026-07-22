@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { FaCheckCircle, FaClock, FaInstagram, FaMapMarkerAlt, FaWhatsapp } from "react-icons/fa";
+import { FaTiktok } from "react-icons/fa6";
 import PageHero from "../components/PageHero";
 import Reveal from "../components/Reveal";
 import {
@@ -9,6 +10,8 @@ import {
   INSTAGRAM_LINK,
   PHONE_DISPLAY,
   PHONE_NUMBER,
+  TIKTOK_HANDLE,
+  TIKTOK_LINK,
   WHATSAPP_LINK,
 } from "../data/site";
 
@@ -46,7 +49,7 @@ export default function Contact() {
       />
 
       <section className="bg-charcoal py-24">
-        <div className="container-lux grid gap-10 lg:grid-cols-3">
+        <div className="container-lux grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <Reveal>
             <div className="card-lux h-full text-center">
               <FaMapMarkerAlt className="mx-auto text-gold" size={24} />
@@ -79,6 +82,20 @@ export default function Contact() {
                 className="mt-3 block text-sm text-bone/60 transition-colors hover:text-gold"
               >
                 {INSTAGRAM_HANDLE}
+              </a>
+            </div>
+          </Reveal>
+          <Reveal delay={0.3}>
+            <div className="card-lux h-full text-center">
+              <FaTiktok className="mx-auto text-gold" size={24} />
+              <h3 className="mt-5 font-display text-lg text-ivory">TikTok</h3>
+              <a
+                href={TIKTOK_LINK}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 block text-sm text-bone/60 transition-colors hover:text-gold"
+              >
+                {TIKTOK_HANDLE}
               </a>
             </div>
           </Reveal>
