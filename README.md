@@ -13,6 +13,11 @@ Colombia. *"Más que un corte, una experiencia."*
   transiciones
 - [React Icons](https://react-icons.github.io/react-icons)
 
+Este es un proyecto **Vite + React Router** (SPA de cliente) — no usa
+Next.js, no hay App Router ni carpeta `/app`. `src/pages/` es solo la
+convención de nombres de este proyecto para los componentes de cada
+ruta declarada en `src/App.tsx`.
+
 ## Estructura
 
 ```
@@ -24,6 +29,9 @@ src/
 api/            Funciones serverless (Vercel) para la integración con
                 Google Calendar — availability, book, cancel, reschedule
 scripts/        Utilidades de configuración (generador de refresh token)
+vercel.json     Rewrite catch-all a index.html — necesario para que las
+                rutas de React Router (ej. /reservar) no den 404 al
+                navegar directo o recargar la página en producción
 ```
 
 Toda la información de marca (nombre, WhatsApp, Instagram, dirección,
