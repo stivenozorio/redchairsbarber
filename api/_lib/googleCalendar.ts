@@ -37,14 +37,27 @@ const REQUIRED_ENV_VARS = [
   "GOOGLE_CALENDAR_ID_ALEJANDRO",
 ] as const;
 
-export class GoogleCalendarConfigError extends Error {}
+export class GoogleCalendarConfigError extends Error {
+  readonly missing: string[];
+
+  constructor(missing: string[]) {
+    super(`Faltan variables de entorno de Google Calendar: ${missing.join(", ")}`);
+    this.name = "GoogleCalendarConfigError";
+    this.missing = missing;
+  }
+}
+
+/** Names of required env vars that are unset or blank, right now. Exposed
+ * so /api/calendar-health can report status without needing a full
+ * assertEnv() throw/catch round-trip. */
+export function getMissingEnvVars(): string[] {
+  return REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+}
 
 function assertEnv(): void {
-  const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+  const missing = getMissingEnvVars();
   if (missing.length > 0) {
-    throw new GoogleCalendarConfigError(
-      `Faltan variables de entorno de Google Calendar: ${missing.join(", ")}`
-    );
+    throw new GoogleCalendarConfigError(missing);
   }
 }
 

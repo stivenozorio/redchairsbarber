@@ -12,7 +12,10 @@ export function sendApiError(res: VercelResponse, error: unknown): void {
 
   if (error instanceof GoogleCalendarConfigError) {
     console.error("Google Calendar no está configurado:", error.message);
-    res.status(500).json({ error: "El sistema de reservas no está disponible en este momento." });
+    res.status(500).json({
+      error: "El sistema de reservas no está disponible en este momento.",
+      missingEnvVars: error.missing,
+    });
     return;
   }
 

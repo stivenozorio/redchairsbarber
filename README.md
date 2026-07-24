@@ -77,6 +77,11 @@ Torres y Alejandro Reyes no comparten agenda.
   de `barberId`.
 - `POST|PATCH /api/reschedule` — lee la duración del evento existente,
   valida el nuevo horario y lo mueve, sin cambiar su duración.
+- `GET /api/calendar-health` — diagnóstico de solo lectura: reporta qué
+  variables de entorno faltan (nunca sus valores) y, si las 5 están
+  presentes, si cada calendario de barbero es válido y accesible con
+  las credenciales actuales. No crea, modifica ni elimina nada — útil
+  para confirmar la configuración sin depender de los logs de Vercel.
 
 Toda la lógica compartida vive en `api/_lib/` (cliente OAuth2 de Google,
 resolución de calendario por barbero, conversión de horarios a
@@ -86,6 +91,11 @@ eventos). La duración y el precio de cada servicio viven en
 ajústalos a tus tiempos reales) y se usan tanto en el cliente (total en
 vivo) como en el servidor (fuente de verdad para disponibilidad y el
 evento creado).
+
+Si falta alguna de las 5 variables de entorno, cualquier endpoint
+responde `500` con `{ "error": "...", "missingEnvVars": ["..."] }` —
+el nombre exacto de la(s) variable(s) que falta(n), no solo un mensaje
+genérico.
 
 ### Variables de entorno
 

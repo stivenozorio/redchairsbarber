@@ -45,6 +45,15 @@ interface AvailabilitySlot {
 
 interface ApiErrorResponse {
   error: string;
+  missingEnvVars?: string[];
+}
+
+function describeApiError(data: ApiErrorResponse | null, fallback: string): string {
+  if (!data) return fallback;
+  if (data.missingEnvVars && data.missingEnvVars.length > 0) {
+    return `${data.error} (faltan estas variables de entorno: ${data.missingEnvVars.join(", ")})`;
+  }
+  return data.error ?? fallback;
 }
 
 interface BookResponse {
@@ -191,7 +200,7 @@ export default function Booking() {
 
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as ApiErrorResponse | null;
-        setFormError(data?.error ?? "No fue posible crear tu reserva. Intenta de nuevo.");
+        setFormError(describeApiError(data, "No fue posible crear tu reserva. Intenta de nuevo."));
         if (res.status === 409) {
           fetchAvailability(date, barberId, selectedServices).then((slots) => {
             setAvailability(toAvailabilityMap(slots));
@@ -260,7 +269,7 @@ export default function Booking() {
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as ApiErrorResponse | null;
-        setActionError(data?.error ?? "No pudimos cancelar tu reserva. Intenta de nuevo.");
+        setActionError(describeApiError(data, "No pudimos cancelar tu reserva. Intenta de nuevo."));
         return;
       }
       clearStoredBooking();
@@ -304,7 +313,7 @@ export default function Booking() {
 
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as ApiErrorResponse | null;
-        setRescheduleError(data?.error ?? "No pudimos reprogramar tu reserva.");
+        setRescheduleError(describeApiError(data, "No pudimos reprogramar tu reserva."));
         return;
       }
 
