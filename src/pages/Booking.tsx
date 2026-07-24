@@ -1,21 +1,22 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   FaCalendarAlt,
   FaCheckCircle,
   FaClock,
   FaCut,
   FaExclamationTriangle,
+  FaSpinner,
   FaUser,
 } from "react-icons/fa";
 import PageHero from "../components/PageHero";
 import Reveal from "../components/Reveal";
-import { SERVICE_CATEGORIES, VIP_EXPERIENCES } from "../data/services";
+import { SERVICE_CATEGORIES, VIP_EXPERIENCES, sumServiceTotals, formatPriceNumber } from "../data/services";
 import { BARBERS, TIME_SLOTS } from "../data/booking";
 import { PHONE_NUMBER } from "../data/site";
 
-const ALL_SERVICES = [
-  ...VIP_EXPERIENCES.map((v) => `${v.name} — ${v.price}`),
-  ...SERVICE_CATEGORIES.flatMap((c) => c.services.map((s) => `${s.name} — ${s.price}`)),
+const SERVICE_GROUPS = [
+  ...SERVICE_CATEGORIES.map((c) => ({ title: c.title, services: c.services })),
+  { title: "Experiencias VIP", services: VIP_EXPERIENCES },
 ];
 
 const fieldClass =
@@ -26,12 +27,15 @@ const BOOKING_STORAGE_KEY = "redchairs:booking";
 
 interface StoredBooking {
   id: string;
-  service: string;
-  barber: string;
+  services: string[];
+  barberId: string;
+  barberName: string;
   date: string;
   time: string;
   name: string;
   phone: string;
+  notes: string;
+  totalPrice: number;
 }
 
 interface AvailabilitySlot {
@@ -41,6 +45,13 @@ interface AvailabilitySlot {
 
 interface ApiErrorResponse {
   error: string;
+}
+
+interface BookResponse {
+  id: string;
+  assignedBarberId: string;
+  assignedBarberName: string;
+  totalPrice: number;
 }
 
 function loadStoredBooking(): StoredBooking | null {
@@ -60,12 +71,18 @@ function clearStoredBooking() {
   localStorage.removeItem(BOOKING_STORAGE_KEY);
 }
 
-/** Fetches real-time slot availability for a date. Returns null (instead of
- * throwing) on any network/config failure so the UI can degrade gracefully
- * to "let the team confirm by WhatsApp" instead of blocking the form. */
-async function fetchAvailability(date: string): Promise<AvailabilitySlot[] | null> {
+/** Fetches real-time slot availability for a date + barber + service
+ * combination. Returns null (instead of throwing) on any network/config
+ * failure so the UI can degrade instead of crashing. */
+async function fetchAvailability(
+  date: string,
+  barberId: string,
+  serviceNames: string[]
+): Promise<AvailabilitySlot[] | null> {
   try {
-    const res = await fetch(`/api/availability?date=${encodeURIComponent(date)}`);
+    const query = new URLSearchParams({ date, barberId }).toString();
+    const servicesParam = serviceNames.map(encodeURIComponent).join(",");
+    const res = await fetch(`/api/availability?${query}&services=${servicesParam}`);
     if (!res.ok) return null;
     const data = (await res.json()) as { slots: AvailabilitySlot[] };
     return data.slots;
@@ -79,19 +96,26 @@ function toAvailabilityMap(slots: AvailabilitySlot[] | null): Record<string, boo
 }
 
 export default function Booking() {
-  const [service, setService] = useState("");
-  const [barber, setBarber] = useState(BARBERS[0].name);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [barberId, setBarberId] = useState(BARBERS[0].id);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [notes, setNotes] = useState("");
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [successPending, setSuccessPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const { totalMinutes, totalPrice } = useMemo(
+    () => sumServiceTotals(selectedServices),
+    [selectedServices]
+  );
 
   const [availability, setAvailability] = useState<Record<string, boolean> | null>(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
-  const latestRequestedDate = useRef<string | null>(null);
+  const latestRequestKey = useRef<string | null>(null);
 
   const [myBooking, setMyBooking] = useState<StoredBooking | null>(() => loadStoredBooking());
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -108,27 +132,35 @@ export default function Booking() {
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
 
+  const toggleService = (serviceName: string) => {
+    setSelectedServices((current) =>
+      current.includes(serviceName) ? current.filter((s) => s !== serviceName) : [...current, serviceName]
+    );
+  };
+
   useEffect(() => {
-    if (!date) {
+    if (!date || !barberId || selectedServices.length === 0) {
       setAvailability(null);
       return;
     }
-    latestRequestedDate.current = date;
+    const key = `${date}|${barberId}|${selectedServices.join(",")}`;
+    latestRequestKey.current = key;
     setCheckingAvailability(true);
-    fetchAvailability(date).then((slots) => {
-      if (latestRequestedDate.current !== date) return;
+    fetchAvailability(date, barberId, selectedServices).then((slots) => {
+      if (latestRequestKey.current !== key) return;
       const map = toAvailabilityMap(slots);
       setAvailability(map);
       setCheckingAvailability(false);
       setTime((current) => (current && map && map[current] === false ? "" : current));
     });
-  }, [date]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, barberId, selectedServices.join(",")]);
 
   useEffect(() => {
-    if (!rescheduleOpen || !rescheduleDate) return;
+    if (!rescheduleOpen || !rescheduleDate || !myBooking) return;
     let active = true;
     setRescheduleChecking(true);
-    fetchAvailability(rescheduleDate).then((slots) => {
+    fetchAvailability(rescheduleDate, myBooking.barberId, myBooking.services).then((slots) => {
       if (!active) return;
       setRescheduleAvailability(toAvailabilityMap(slots));
       setRescheduleChecking(false);
@@ -136,60 +168,82 @@ export default function Booking() {
     return () => {
       active = false;
     };
-  }, [rescheduleOpen, rescheduleDate]);
+  }, [rescheduleOpen, rescheduleDate, myBooking]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    if (selectedServices.length === 0) {
+      setFormError("Selecciona al menos un servicio.");
+      return;
+    }
+
     setSubmitting(true);
 
+    let result: BookResponse;
     try {
       const res = await fetch("/api/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ service, barber, date, time, name, phone }),
+        body: JSON.stringify({ services: selectedServices, barberId, date, time, name, phone, notes }),
       });
 
-      if (res.status === 409) {
+      if (!res.ok) {
         const data = (await res.json().catch(() => null)) as ApiErrorResponse | null;
-        setFormError(data?.error ?? "Ese horario ya no está disponible. Elige otro.");
-        latestRequestedDate.current = date;
-        fetchAvailability(date).then((slots) => {
-          if (latestRequestedDate.current !== date) return;
-          setAvailability(toAvailabilityMap(slots));
-        });
+        setFormError(data?.error ?? "No fue posible crear tu reserva. Intenta de nuevo.");
+        if (res.status === 409) {
+          fetchAvailability(date, barberId, selectedServices).then((slots) => {
+            setAvailability(toAvailabilityMap(slots));
+          });
+        }
         setSubmitting(false);
         return;
       }
 
-      if (res.ok) {
-        const data = (await res.json()) as { id: string };
-        const booking: StoredBooking = { id: data.id, service, barber, date, time, name, phone };
-        saveStoredBooking(booking);
-        setMyBooking(booking);
-      }
-      // If the calendar call itself failed (e.g. Google not configured yet),
-      // we still fall through to the WhatsApp handoff below so reservations
-      // keep working exactly as before.
+      result = (await res.json()) as BookResponse;
     } catch {
-      // Network error — fall through to the WhatsApp fallback.
+      setFormError("No fue posible crear tu reserva. Verifica tu conexión e intenta de nuevo.");
+      setSubmitting(false);
+      return;
     }
 
+    const booking: StoredBooking = {
+      id: result.id,
+      services: selectedServices,
+      barberId: result.assignedBarberId,
+      barberName: result.assignedBarberName,
+      date,
+      time,
+      name,
+      phone,
+      notes,
+      totalPrice: result.totalPrice,
+    };
+    saveStoredBooking(booking);
+    setMyBooking(booking);
     setSubmitting(false);
+    setSuccessPending(true);
 
-    const lines = [
-      "Hola Red Chairs Barber, quiero reservar una cita.",
-      "",
-      `Servicio: ${service || "Por definir"}`,
-      `Barbero: ${barber}`,
-      `Fecha: ${date || "Por definir"}`,
-      `Hora: ${time || "Por definir"}`,
-      `Nombre: ${name || "-"}`,
-      `Teléfono: ${phone || "-"}`,
-    ];
-    const url = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(lines.join("\n"))}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-    setSent(true);
+    window.setTimeout(() => {
+      const lines = [
+        "Hola Red Chairs Barber, quiero confirmar mi cita.",
+        "",
+        `Barbero: ${result.assignedBarberName}`,
+        "Servicios:",
+        ...sumServiceTotals(selectedServices).services.map((s) => `- ${s.name} (${s.price})`),
+        `Valor total: ${formatPriceNumber(result.totalPrice)}`,
+        `Fecha: ${date}`,
+        `Hora: ${time}`,
+        `Nombre: ${name}`,
+        `Teléfono: ${phone}`,
+        notes.trim() ? `Observaciones: ${notes.trim()}` : null,
+      ].filter((line): line is string => Boolean(line));
+      const url = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(lines.join("\n"))}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      setSuccessPending(false);
+      setSent(true);
+    }, 2000);
   };
 
   const handleCancel = async () => {
@@ -202,7 +256,7 @@ export default function Booking() {
       const res = await fetch("/api/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: myBooking.id }),
+        body: JSON.stringify({ eventId: myBooking.id, barberId: myBooking.barberId }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as ApiErrorResponse | null;
@@ -240,7 +294,12 @@ export default function Booking() {
       const res = await fetch("/api/reschedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: myBooking.id, date: rescheduleDate, time: rescheduleTime }),
+        body: JSON.stringify({
+          eventId: myBooking.id,
+          barberId: myBooking.barberId,
+          date: rescheduleDate,
+          time: rescheduleTime,
+        }),
       });
 
       if (!res.ok) {
@@ -266,7 +325,7 @@ export default function Booking() {
       <PageHero
         eyebrow="Agenda tu cita"
         title="Reservar Cita"
-        subtitle="Selecciona tu servicio, tu barbero de confianza, y el día y hora que mejor te convenga."
+        subtitle="Selecciona tus servicios, tu barbero de confianza, y el día y hora que mejor te convenga."
       />
 
       <section className="bg-charcoal py-24">
@@ -277,9 +336,12 @@ export default function Booking() {
                 <div className="flex flex-wrap items-start justify-between gap-6">
                   <div>
                     <p className="eyebrow justify-start before:hidden">Tu reserva</p>
-                    <h3 className="mt-3 font-display text-xl text-ivory">{myBooking.service}</h3>
+                    <h3 className="mt-3 font-display text-xl text-ivory">
+                      {myBooking.services.join(" + ")}
+                    </h3>
                     <p className="mt-2 text-sm text-bone/70">
-                      {myBooking.barber} · {myBooking.date} · {myBooking.time}
+                      {myBooking.barberName} · {myBooking.date} · {myBooking.time} ·{" "}
+                      {formatPriceNumber(myBooking.totalPrice)}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-3">
@@ -381,23 +443,48 @@ export default function Booking() {
               <form onSubmit={handleSubmit} className="card-lux space-y-6">
                 <div>
                   <label className="mb-2 flex items-center gap-2 text-xs uppercase tracking-widest2 text-gold/80">
-                    <FaCut /> Servicio
+                    <FaCut /> Servicios
                   </label>
-                  <select
-                    required
-                    value={service}
-                    onChange={(e) => setService(e.target.value)}
-                    className={fieldClass}
-                  >
-                    <option value="" disabled>
-                      Selecciona un servicio
-                    </option>
-                    {ALL_SERVICES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
+                  <div className="max-h-72 space-y-5 overflow-y-auto rounded-sm border border-gold/20 bg-obsidian p-5">
+                    {SERVICE_GROUPS.map((group) => (
+                      <div key={group.title}>
+                        <p className="mb-2 text-[11px] uppercase tracking-widest2 text-gold/70">
+                          {group.title}
+                        </p>
+                        <div className="space-y-1">
+                          {group.services.map((s) => (
+                            <label
+                              key={s.name}
+                              className="flex cursor-pointer items-center justify-between gap-3 rounded-sm px-2 py-1.5 text-sm text-ivory/90 transition-colors hover:bg-white/5"
+                            >
+                              <span className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedServices.includes(s.name)}
+                                  onChange={() => toggleService(s.name)}
+                                  className="h-4 w-4 accent-gold"
+                                />
+                                {s.name}
+                              </span>
+                              <span className="shrink-0 text-gold/80">{s.price}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     ))}
-                  </select>
+                  </div>
+                  <p className="mt-3 text-xs text-bone/60">
+                    {selectedServices.length > 0 ? (
+                      <>
+                        {selectedServices.length} servicio{selectedServices.length > 1 ? "s" : ""}{" "}
+                        seleccionado{selectedServices.length > 1 ? "s" : ""} · Duración estimada:{" "}
+                        {totalMinutes} min · Total:{" "}
+                        <span className="font-semibold text-gold">{formatPriceNumber(totalPrice)}</span>
+                      </>
+                    ) : (
+                      "Selecciona al menos un servicio."
+                    )}
+                  </p>
                 </div>
 
                 <div>
@@ -405,12 +492,12 @@ export default function Booking() {
                     <FaUser /> Barbero
                   </label>
                   <select
-                    value={barber}
-                    onChange={(e) => setBarber(e.target.value)}
+                    value={barberId}
+                    onChange={(e) => setBarberId(e.target.value)}
                     className={fieldClass}
                   >
                     {BARBERS.map((b) => (
-                      <option key={b.id} value={b.name}>
+                      <option key={b.id} value={b.id}>
                         {b.name}
                       </option>
                     ))}
@@ -439,7 +526,7 @@ export default function Booking() {
                       required
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
-                      disabled={checkingAvailability}
+                      disabled={checkingAvailability || selectedServices.length === 0}
                       className={fieldClass}
                     >
                       <option value="" disabled>
@@ -474,8 +561,26 @@ export default function Booking() {
                   />
                 </div>
 
-                <button type="submit" disabled={submitting} className="btn-gold w-full disabled:opacity-50">
-                  {submitting ? "Reservando..." : "Reservar por WhatsApp"}
+                <textarea
+                  placeholder="Observaciones (opcional)"
+                  rows={3}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className={`${fieldClass} resize-none`}
+                />
+
+                <button
+                  type="submit"
+                  disabled={submitting || successPending}
+                  className="btn-gold flex w-full items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {submitting && (
+                    <>
+                      <FaSpinner className="animate-spin" /> Creando tu reserva...
+                    </>
+                  )}
+                  {!submitting && successPending && "Redirigiendo a WhatsApp..."}
+                  {!submitting && !successPending && "Reservar por WhatsApp"}
                 </button>
 
                 {formError && (
@@ -484,7 +589,18 @@ export default function Booking() {
                   </p>
                 )}
 
-                {sent && (
+                {successPending && (
+                  <div className="rounded-sm border border-gold/30 bg-gold/10 p-4 text-center">
+                    <p className="flex items-center justify-center gap-2 text-sm font-semibold text-gold">
+                      <FaCheckCircle /> ¡Tu cita fue reservada exitosamente!
+                    </p>
+                    <p className="mt-2 text-xs text-bone/70">
+                      En unos segundos serás redirigido a WhatsApp para confirmar tu reserva.
+                    </p>
+                  </div>
+                )}
+
+                {sent && !successPending && (
                   <p className="flex items-center gap-2 text-sm text-gold">
                     <FaCheckCircle /> Te redirigimos a WhatsApp para confirmar tu cita.
                   </p>
@@ -502,7 +618,7 @@ export default function Booking() {
                 <h3 className="font-display text-2xl text-ivory">¿Cómo funciona?</h3>
                 <ol className="mt-8 space-y-6">
                   {[
-                    "Elige el servicio o experiencia que quieres vivir.",
+                    "Elige uno o varios servicios que quieras vivir.",
                     "Selecciona tu barbero de confianza o déjalo a nuestra elección.",
                     "Escoge la fecha y hora que mejor se ajuste a tu agenda.",
                     "Confirma tu reserva por WhatsApp y listo.",

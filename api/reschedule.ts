@@ -1,11 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getCalendarClient, getCalendarId, TIMEZONE } from "./_lib/googleCalendar.js";
-import { buildSlotRange, InvalidScheduleInputError } from "./_lib/schedule.js";
+import { getCalendarClient, getCalendarIdForBarber, isBarberId, TIMEZONE } from "./_lib/googleCalendar.js";
+import {
+  buildSlotRange,
+  durationMinutesBetween,
+  fitsBusinessHours,
+  InvalidScheduleInputError,
+} from "./_lib/schedule.js";
 import { listBusyIntervals, isRangeFree } from "./_lib/availability.js";
 import { sendApiError } from "./_lib/http.js";
 
 interface RescheduleRequestBody {
   eventId?: string;
+  barberId?: string;
   date?: string;
   time?: string;
 }
@@ -17,17 +23,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { eventId, date, time } = (req.body ?? {}) as RescheduleRequestBody;
+    const { eventId, barberId, date, time } = (req.body ?? {}) as RescheduleRequestBody;
     if (!eventId || typeof eventId !== "string") {
       throw new InvalidScheduleInputError("El campo 'eventId' es requerido.");
+    }
+    if (!barberId || !isBarberId(barberId)) {
+      throw new InvalidScheduleInputError("El campo 'barberId' es requerido y debe ser un barbero válido.");
     }
     if (!date || !time) {
       throw new InvalidScheduleInputError("Los campos 'date' y 'time' son requeridos.");
     }
 
     const calendar = getCalendarClient();
-    const calendarId = getCalendarId();
-    const { startISO, endISO } = buildSlotRange(date, time);
+    const calendarId = getCalendarIdForBarber(barberId);
+
+    // Keep the event's current length — read it back instead of trusting a
+    // client-provided duration, so a reschedule never silently shrinks or
+    // grows the appointment.
+    const existing = await calendar.events.get({ calendarId, eventId });
+    const existingStart = existing.data.start?.dateTime;
+    const existingEnd = existing.data.end?.dateTime;
+    if (!existingStart || !existingEnd) {
+      throw new InvalidScheduleInputError("No se pudo leer la duración de la reserva original.");
+    }
+    const durationMinutes = durationMinutesBetween(existingStart, existingEnd);
+
+    if (!fitsBusinessHours(time, durationMinutes)) {
+      res.status(409).json({ error: "Ese horario no cabe en el horario de atención. Elige otro." });
+      return;
+    }
+
+    const { startISO, endISO } = buildSlotRange(date, time, durationMinutes);
 
     // Exclude the event's own current slot from the conflict check so it
     // doesn't block itself when moving to a nearby/overlapping time.

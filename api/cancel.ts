@@ -1,10 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getCalendarClient, getCalendarId } from "./_lib/googleCalendar.js";
+import { getCalendarClient, getCalendarIdForBarber, isBarberId } from "./_lib/googleCalendar.js";
 import { InvalidScheduleInputError } from "./_lib/schedule.js";
 import { sendApiError } from "./_lib/http.js";
 
 interface CancelRequestBody {
   eventId?: string;
+  barberId?: string;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -14,13 +15,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { eventId } = (req.body ?? {}) as CancelRequestBody;
+    const { eventId, barberId } = (req.body ?? {}) as CancelRequestBody;
     if (!eventId || typeof eventId !== "string") {
       throw new InvalidScheduleInputError("El campo 'eventId' es requerido.");
     }
+    if (!barberId || !isBarberId(barberId)) {
+      throw new InvalidScheduleInputError("El campo 'barberId' es requerido y debe ser un barbero válido.");
+    }
 
     const calendar = getCalendarClient();
-    const calendarId = getCalendarId();
+    const calendarId = getCalendarIdForBarber(barberId);
 
     try {
       await calendar.events.delete({ calendarId, eventId });

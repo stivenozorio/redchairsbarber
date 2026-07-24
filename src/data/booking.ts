@@ -1,7 +1,7 @@
 export const BARBERS = [
   { id: "any", name: "Sin preferencia" },
   { id: "camilo", name: "Camilo Torres" },
-  { id: "alejandro", name: "Alejandro" },
+  { id: "alejandro", name: "Alejandro Reyes" },
 ];
 
 export const TIME_SLOTS = [

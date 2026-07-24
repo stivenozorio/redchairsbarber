@@ -43,6 +43,21 @@ function totalMinutesToISO(dateStr: string, totalMinutes: number): string {
   return `${effectiveDate}T${pad(hours)}:${pad(minutes)}:00${UTC_OFFSET}`;
 }
 
+// Must match the published schedule in src/data/site.ts (HOURS): "Lunes a
+// sábado, 10:00 a. m. – 8:00 p. m." Update both if the schedule changes.
+const BUSINESS_OPEN_MINUTES = 10 * 60;
+const BUSINESS_CLOSE_MINUTES = 20 * 60;
+
+/** Whether a slot starting at `time` and lasting `durationMinutes` fits
+ * entirely within business hours (needed now that duration varies with the
+ * combination of services selected). */
+export function fitsBusinessHours(time: string, durationMinutes: number): boolean {
+  const { hours, minutes } = parseTimeLabel(time);
+  const startTotalMinutes = hours * 60 + minutes;
+  const endTotalMinutes = startTotalMinutes + durationMinutes;
+  return startTotalMinutes >= BUSINESS_OPEN_MINUTES && endTotalMinutes <= BUSINESS_CLOSE_MINUTES;
+}
+
 export interface SlotRange {
   startISO: string;
   endISO: string;
@@ -75,4 +90,10 @@ export function buildDayRange(date: string): SlotRange {
     startISO: `${date}T00:00:00${UTC_OFFSET}`,
     endISO: `${addDays(date, 1)}T00:00:00${UTC_OFFSET}`,
   };
+}
+
+/** Minutes between two RFC3339 timestamps — used to read back the duration
+ * of an existing event (e.g. when rescheduling, so it keeps its length). */
+export function durationMinutesBetween(startISO: string, endISO: string): number {
+  return Math.round((new Date(endISO).getTime() - new Date(startISO).getTime()) / 60000);
 }

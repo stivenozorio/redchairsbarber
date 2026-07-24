@@ -48,28 +48,44 @@ npm run build      # build de producción en dist/
 El formulario de `/reservar` llama a los endpoints de `/api` (ver abajo)
 para consultar disponibilidad real y crear la cita; localmente esos
 endpoints solo corren con `vercel dev` (no con `vite dev`), así que en
-`npm run dev` el formulario cae automáticamente al flujo por WhatsApp si
-las llamadas a `/api` fallan — no rompe la experiencia sin backend.
+`npm run dev` la disponibilidad no cargará. La reserva en sí requiere
+que `/api/book` cree el evento en Google Calendar exitosamente antes de
+redirigir a WhatsApp — si falla, se muestra un error y no se abre
+WhatsApp (evita mensajes de "reserva confirmada" cuando en realidad no
+se creó ningún evento).
 
 ## Integración con Google Calendar
 
-Las reservas se validan y se crean como eventos reales en un Google
+Las reservas se validan y se crean como eventos reales en Google
 Calendar, con toda la lógica de Google ejecutándose solo en funciones
-serverless de Vercel (`/api`), nunca en el navegador.
+serverless de Vercel (`/api`), nunca en el navegador. **Cada barbero
+tiene su propio calendario, completamente independiente** — Camilo
+Torres y Alejandro Reyes no comparten agenda.
 
 ### Endpoints (`/api`)
 
-- `GET /api/availability?date=YYYY-MM-DD` — disponibilidad real de cada
-  franja horaria de `src/data/booking.ts` ese día.
-- `POST /api/book` — vuelve a validar el cupo (evita dobles reservas) y
-  crea el evento en el calendario.
-- `POST /api/cancel` — elimina un evento por `eventId`.
-- `POST|PATCH /api/reschedule` — valida el nuevo horario y mueve el
-  evento existente.
+- `GET /api/availability?date=YYYY-MM-DD&barberId=camilo|alejandro|any&services=A,B`
+  — disponibilidad real para la duración total de los servicios
+  seleccionados, en el calendario del barbero indicado (`any` = "sin
+  preferencia": disponible si al menos uno de los dos está libre).
+- `POST /api/book` — recalcula duración y valor total en el servidor a
+  partir de los nombres de servicio recibidos, vuelve a validar el cupo
+  (evita dobles reservas) y crea un único evento con todos los
+  servicios en el calendario del barbero resuelto (`any` intenta primero
+  con Camilo y luego con Alejandro).
+- `POST /api/cancel` — elimina un evento por `eventId` en el calendario
+  de `barberId`.
+- `POST|PATCH /api/reschedule` — lee la duración del evento existente,
+  valida el nuevo horario y lo mueve, sin cambiar su duración.
 
 Toda la lógica compartida vive en `api/_lib/` (cliente OAuth2 de Google,
-conversión de horarios a `America/Bogota`, y el chequeo de solapamiento
-de eventos).
+resolución de calendario por barbero, conversión de horarios a
+`America/Bogota`, chequeo de horario de atención y de solapamiento de
+eventos). La duración y el precio de cada servicio viven en
+`src/data/services.ts` (`durationMinutes` por servicio — son estimados,
+ajústalos a tus tiempos reales) y se usan tanto en el cliente (total en
+vivo) como en el servidor (fuente de verdad para disponibilidad y el
+evento creado).
 
 ### Variables de entorno
 
@@ -81,11 +97,12 @@ Settings → Environment Variables) y completa:
 | `GOOGLE_CLIENT_ID` | Client ID del OAuth Client (app web) |
 | `GOOGLE_CLIENT_SECRET` | Client Secret del mismo OAuth Client |
 | `GOOGLE_REFRESH_TOKEN` | Token de larga duración (ver siguiente sección) |
-| `GOOGLE_CALENDAR_ID` | ID del calendario de `redchairsb@gmail.com` |
+| `GOOGLE_CALENDAR_ID_CAMILO` | ID del calendario de Camilo Torres |
+| `GOOGLE_CALENDAR_ID_ALEJANDRO` | ID del calendario de Alejandro Reyes |
 
-Opcionales: `GOOGLE_CALENDAR_SLOT_DURATION_MINUTES` (duración de cada
-cita, por defecto 60) y `GOOGLE_OAUTH_REDIRECT_URI` (solo lo usa el
-script de abajo).
+Opcionales: `GOOGLE_CALENDAR_SLOT_DURATION_MINUTES` (fallback interno si
+alguna vez se pide un slot sin duración explícita, por defecto 60) y
+`GOOGLE_OAUTH_REDIRECT_URI` (solo lo usa el script de abajo).
 
 ### Generar GOOGLE_REFRESH_TOKEN
 
