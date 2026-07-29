@@ -34,7 +34,11 @@ export interface AuthContextValue {
   signOut: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<AuthResult>;
   updatePassword: (newPassword: string) => Promise<AuthResult>;
-  updateProfile: (fields: Partial<Pick<Profile, "full_name" | "phone" | "birthday">>) => Promise<AuthResult>;
+  updateProfile: (
+    fields: Partial<
+      Pick<Profile, "full_name" | "phone" | "birthday" | "phone_prompt_dismissed">
+    >
+  ) => Promise<AuthResult>;
   refreshProfile: () => Promise<void>;
 }
 

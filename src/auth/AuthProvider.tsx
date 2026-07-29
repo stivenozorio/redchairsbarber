@@ -76,15 +76,56 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       setProfile((data as Profile) ?? null);
     }
     setProfileLoading(false);
+    return (data as Profile) ?? null;
   }, []);
+
+  /** Completa el perfil con lo que entrega el proveedor (Google), sin
+   * pisar nada que el cliente haya editado a mano: solo rellena campos
+   * vacíos. El avatar sí se mantiene sincronizado porque no es editable
+   * desde la aplicación. */
+  const syncProfileFromProvider = useCallback(
+    async (currentUser: User, currentProfile: Profile | null) => {
+      if (!supabase || !currentProfile) return;
+
+      const meta = currentUser.user_metadata ?? {};
+      const providerName =
+        (meta.full_name as string | undefined) ?? (meta.name as string | undefined) ?? null;
+      const providerAvatar =
+        (meta.avatar_url as string | undefined) ?? (meta.picture as string | undefined) ?? null;
+
+      const updates: Record<string, string> = {};
+
+      if (!currentProfile.full_name?.trim() && providerName) {
+        updates.full_name = providerName;
+      }
+      if (providerAvatar && providerAvatar !== currentProfile.avatar_url) {
+        updates.avatar_url = providerAvatar;
+      }
+      if (!currentProfile.email && currentUser.email) {
+        updates.email = currentUser.email;
+      }
+
+      if (Object.keys(updates).length === 0) return;
+
+      const { error } = await supabase.from("profiles").update(updates).eq("id", currentUser.id);
+      if (error) {
+        console.error("No se pudo sincronizar el perfil con el proveedor:", error.message);
+        return;
+      }
+      await loadProfile(currentUser.id);
+    },
+    [loadProfile]
+  );
 
   useEffect(() => {
     if (!user) {
       setProfile(null);
       return;
     }
-    void loadProfile(user.id);
-  }, [user, loadProfile]);
+    void loadProfile(user.id).then((loaded) => {
+      if (loaded) void syncProfileFromProvider(user, loaded);
+    });
+  }, [user, loadProfile, syncProfileFromProvider]);
 
   const refreshProfile = useCallback(async () => {
     if (user) await loadProfile(user.id);
@@ -148,7 +189,9 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateProfile = useCallback(
-    async (fields: Partial<Pick<Profile, "full_name" | "phone" | "birthday">>): Promise<AuthResult> => {
+    async (
+      fields: Partial<Pick<Profile, "full_name" | "phone" | "birthday" | "phone_prompt_dismissed">>
+    ): Promise<AuthResult> => {
       if (!supabase || !user) return { error: "No has iniciado sesión." };
       const { error } = await supabase.from("profiles").update(fields).eq("id", user.id);
       if (error) return { error: error.message };

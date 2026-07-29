@@ -146,13 +146,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Flujo definido para RED CLUB:
-    //   1. Guardar la reserva en Supabase (fuente de verdad)
+    //   1. Guardar la reserva + sus servicios en Supabase (fuente de verdad)
     //   2. Crear el evento en Google Calendar (agenda del barbero)
     //   3. Guardar el google_event_id y confirmar
-    // Si Supabase no está configurado, bookingId queda en null y todo
-    // sigue funcionando solo contra Calendar, como antes.
+    //
+    // Si el paso 1 falla, se ABORTA: no se crea el evento en Calendar.
+    // Una cita en la agenda sin registro en la base no se puede mostrar
+    // en "Mi cuenta", ni cancelar, ni contar para el club.
     const userId = await getUserIdFromRequest(req);
-    const bookingId = await createBookingRecord({
+    const { bookingId, error: dbError } = await createBookingRecord({
       userId,
       barberId: assignedTo,
       startISO,
@@ -164,6 +166,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       notes,
       services: resolvedServices,
     });
+
+    if (dbError) {
+      res.status(500).json({
+        error: "No fue posible registrar tu reserva. Intenta de nuevo.",
+        detail: dbError,
+      });
+      return;
+    }
 
     let event;
     try {
@@ -179,7 +189,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (bookingId && event.data.id) {
-      await attachGoogleEvent(bookingId, event.data.id);
+      const { error: linkError } = await attachGoogleEvent(bookingId, event.data.id);
+      if (linkError) {
+        // El evento existe pero quedó sin enlazar: se registra para
+        // poder reconciliarlo, sin fallarle al cliente que ya tiene cita.
+        console.error(
+          `Reserva ${bookingId} creada en Calendar (${event.data.id}) pero no se pudo enlazar:`,
+          linkError
+        );
+      }
     }
 
     res.status(201).json({

@@ -139,9 +139,10 @@ Vercel. Nunca inventes ni reutilices un token de otro proyecto.
 
 RED CLUB es la plataforma de membresías: cuentas de cliente, historial,
 puntos, niveles, recompensas y referidos. **Fase 1 (actual)** entrega
-cuentas, perfiles, rutas protegidas, "Mi cuenta" y la persistencia de
-reservas. El resto del modelo de datos ya existe en la base, listo para
-las fases siguientes sin migrar nada.
+cuentas, perfiles (con avatar de Google y teléfono editable), rutas
+protegidas, "Mi cuenta" con próxima cita e historial, y la persistencia
+de reservas. El resto del modelo de datos ya existe en la base, listo
+para las fases siguientes sin migrar nada.
 
 ### Principio de degradación
 
@@ -155,7 +156,7 @@ para reservar.
 
 | Tabla | Rol |
 |---|---|
-| `profiles` | Extiende `auth.users`. Se crea sola por trigger al registrarse |
+| `profiles` | Extiende `auth.users`. Se crea sola por trigger al registrarse; guarda nombre, teléfono y avatar |
 | `barbers`, `services`, `tiers` | Catálogos (lectura pública) |
 | `bookings` | **Fuente de verdad** de las reservas; `google_event_id` es la referencia cruzada |
 | `booking_services` | Servicios de cada reserva, con snapshot de nombre/precio/duración |
@@ -196,20 +197,41 @@ Son idempotentes: se pueden volver a ejecutar sin duplicar datos.
 
 ```
 Cliente reserva
-   ↓  1. Se guarda en Supabase (status 'pending')
+   ↓  1. Se guarda en Supabase (status 'pending') + booking_services
    ↓  2. Se crea el evento en Google Calendar
    ↓  3. Se guarda google_event_id y pasa a 'confirmed'
 ```
 
-Si el paso 2 falla, la reserva se descarta en la base para no bloquear
-un horario que en realidad está libre. Reservar sin cuenta sigue
-permitido: `bookings.user_id` es nulo para invitados.
+**Si el paso 1 falla, se aborta y NO se crea el evento en Calendar**, y
+el error real viaja al cliente en el campo `detail`. Una cita en la
+agenda sin registro en la base no se podría mostrar en "Mi cuenta", ni
+cancelar, ni contar para el club.
+
+Si el paso 2 falla, la reserva se elimina de la base para no bloquear un
+horario que en realidad está libre.
+
+Reservar sin cuenta sigue permitido: `bookings.user_id` es nulo para
+invitados.
+
+### Instalación / actualización de la base
+
+En Supabase → **SQL Editor**, ejecutar en orden los archivos de
+`supabase/migrations/`. Son idempotentes y ninguno borra datos.
+
+**`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
+foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede
+guardar**.
 
 ### Diagnóstico
 
-- `GET /api/supabase-health` — variables faltantes, existencia de cada
-  tabla y si las semillas se ejecutaron. No escribe nada.
+- `GET /api/health` — el diagnóstico completo. Reporta variables
+  faltantes, cada tabla con su número de filas, si los catálogos están
+  sembrados, y verifica llaves foráneas, índices, triggers, funciones,
+  vistas y RLS. Cuando algo falla devuelve `problems` y `nextSteps` con
+  el archivo exacto a ejecutar. No escribe nada.
 - `GET /api/calendar-health` — equivalente para Google Calendar.
+- `supabase/verify.sql` — las mismas comprobaciones desde el SQL Editor,
+  con resultados en tablas legibles.
 
 ## Próximas fases
 

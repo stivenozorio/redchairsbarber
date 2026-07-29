@@ -14,6 +14,7 @@ const schema = readMigration("0001_schema.sql");
 const functions = readMigration("0002_functions.sql");
 const rls = readMigration("0003_rls.sql");
 const seed = readMigration("0004_seed.sql");
+const profileDiag = readMigration("0005_profile_and_diagnostics.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -146,4 +147,40 @@ test("los barberos sembrados coinciden con los del código", () => {
   assert.ok(seed.includes("'camilo'"));
   assert.ok(seed.includes("'alejandro'"));
   assert.ok(seed.includes("Alejandro Reyes"));
+});
+
+// --- 0005: perfil enriquecido y diagnóstico ---
+
+test("0005 agrega avatar y control del formulario de teléfono", () => {
+  assert.match(profileDiag, /add column if not exists avatar_url/);
+  assert.match(profileDiag, /add column if not exists phone_prompt_dismissed/);
+});
+
+test("0005 es seguro de re-ejecutar y no borra datos", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b/i.test(profileDiag),
+    "la migración no debe borrar datos existentes"
+  );
+  assert.ok(profileDiag.includes("on conflict (id) do nothing"));
+});
+
+test("0005 repara perfiles faltantes sin tocar los existentes", () => {
+  assert.match(profileDiag, /where not exists \(select 1 from public\.profiles/);
+});
+
+test("el trigger captura el avatar que entrega Google", () => {
+  assert.ok(profileDiag.includes("'avatar_url'"));
+  assert.ok(profileDiag.includes("'picture'"), "Google usa 'picture' en algunos flujos");
+});
+
+test("la función de diagnóstico existe y no es pública", () => {
+  assert.ok(profileDiag.includes("create or replace function public.redclub_diagnostics"));
+  assert.match(profileDiag, /revoke all on function public\.redclub_diagnostics\(\) from/);
+});
+
+test("0005 refresca el cache de esquema de PostgREST", () => {
+  assert.ok(
+    profileDiag.includes("notify pgrst, 'reload schema'"),
+    "sin esto las consultas con relaciones embebidas pueden fallar tras migrar"
+  );
 });

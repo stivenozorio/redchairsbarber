@@ -10,12 +10,15 @@ export interface Profile {
   email: string | null;
   full_name: string | null;
   phone: string | null;
+  avatar_url: string | null;
   birthday: string | null;
   role: UserRole;
   referral_code: string | null;
   referred_by: string | null;
   visit_count: number;
   marketing_opt_in: boolean;
+  /** El teléfono se pide una sola vez a quien entra con Google. */
+  phone_prompt_dismissed: boolean;
   created_at: string;
   updated_at: string;
 }
