@@ -10,6 +10,12 @@ import {
 import { buildSlotRange, fitsBusinessHours, InvalidScheduleInputError } from "./_lib/schedule.js";
 import { listBusyIntervals, isRangeFree } from "./_lib/availability.js";
 import { sendApiError } from "./_lib/http.js";
+import { getUserIdFromRequest } from "./_lib/auth.js";
+import {
+  attachGoogleEvent,
+  createBookingRecord,
+  discardBooking,
+} from "./_lib/bookingsRepo.js";
 import { BARBERS } from "../src/data/booking.js";
 import { sumServiceTotals, formatPriceNumber } from "../src/data/services.js";
 
@@ -41,22 +47,16 @@ function assertBookingBody(body: BookingRequestBody) {
   }
 }
 
-/** Tries to book on a single barber's calendar. Returns the created event
- * info, or null if that barber isn't free for the requested slot. */
-async function tryBookOnCalendar(
+/** Whether a barber's calendar has no conflicting event in the range. */
+async function isBarberFree(
   calendar: calendar_v3.Calendar,
   barberId: BarberId,
   startISO: string,
-  endISO: string,
-  eventBody: calendar_v3.Schema$Event
-) {
+  endISO: string
+): Promise<boolean> {
   const calendarId = getCalendarIdForBarber(barberId);
   const busyIntervals = await listBusyIntervals(calendar, calendarId, startISO, endISO);
-  if (!isRangeFree(busyIntervals, startISO, endISO)) {
-    return null;
-  }
-  const event = await calendar.events.insert({ calendarId, requestBody: eventBody });
-  return event;
+  return isRangeFree(busyIntervals, startISO, endISO);
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -127,34 +127,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // with whoever is actually free.
     const candidates: BarberId[] = barberId === "any" ? ["camilo", "alejandro"] : [barberId as BarberId];
 
+    let assignedTo: BarberId | null = null;
     for (const candidate of candidates) {
-      const event = await tryBookOnCalendar(
-        calendar,
-        candidate,
-        startISO,
-        endISO,
-        buildEventBody(candidate)
-      );
-      if (event) {
-        res.status(201).json({
-          id: event.data.id,
-          htmlLink: event.data.htmlLink,
-          start: startISO,
-          end: endISO,
-          assignedBarberId: candidate,
-          assignedBarberName: barberName(candidate),
-          totalMinutes,
-          totalPrice,
-        });
-        return;
+      if (await isBarberFree(calendar, candidate, startISO, endISO)) {
+        assignedTo = candidate;
+        break;
       }
     }
 
-    res.status(409).json({
-      error:
-        barberId === "any"
-          ? "Ese horario ya no está disponible con ningún barbero. Elige otro."
-          : "Ese horario ya no está disponible. Elige otro.",
+    if (!assignedTo) {
+      res.status(409).json({
+        error:
+          barberId === "any"
+            ? "Ese horario ya no está disponible con ningún barbero. Elige otro."
+            : "Ese horario ya no está disponible. Elige otro.",
+      });
+      return;
+    }
+
+    // Flujo definido para RED CLUB:
+    //   1. Guardar la reserva en Supabase (fuente de verdad)
+    //   2. Crear el evento en Google Calendar (agenda del barbero)
+    //   3. Guardar el google_event_id y confirmar
+    // Si Supabase no está configurado, bookingId queda en null y todo
+    // sigue funcionando solo contra Calendar, como antes.
+    const userId = await getUserIdFromRequest(req);
+    const bookingId = await createBookingRecord({
+      userId,
+      barberId: assignedTo,
+      startISO,
+      endISO,
+      totalPriceCop: totalPrice,
+      totalDurationMinutes: totalMinutes,
+      customerName: name,
+      customerPhone: phone,
+      notes,
+      services: resolvedServices,
+    });
+
+    let event;
+    try {
+      event = await calendar.events.insert({
+        calendarId: getCalendarIdForBarber(assignedTo),
+        requestBody: buildEventBody(assignedTo),
+      });
+    } catch (calendarError) {
+      // El evento no se creó: la reserva en la base no puede quedar
+      // viva ocupando un horario que en realidad está libre.
+      if (bookingId) await discardBooking(bookingId);
+      throw calendarError;
+    }
+
+    if (bookingId && event.data.id) {
+      await attachGoogleEvent(bookingId, event.data.id);
+    }
+
+    res.status(201).json({
+      id: event.data.id,
+      bookingId,
+      htmlLink: event.data.htmlLink,
+      start: startISO,
+      end: endISO,
+      assignedBarberId: assignedTo,
+      assignedBarberName: barberName(assignedTo),
+      totalMinutes,
+      totalPrice,
     });
   } catch (error) {
     sendApiError(res, error);

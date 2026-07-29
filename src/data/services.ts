@@ -1,4 +1,8 @@
 export interface Service {
+  /** Identificador estable, espejo de public.services.id en Supabase.
+   * No cambiarlo: es la llave que une el historial de reservas con el
+   * catálogo. El nombre sí puede cambiar; el id no. */
+  id: string;
   name: string;
   price: string;
   /** Estimated appointment length in minutes — used to sum total duration
@@ -24,6 +28,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     subtitle: "La base de un buen estilo",
     services: [
       {
+        id: "corte-sencillo",
         name: "Corte de Cabello Sencillo",
         price: "$20.000",
         durationMinutes: 30,
@@ -31,12 +36,14 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
           "Experiencia personalizada con diagnóstico visajista, peinado premium y toque final con loción.",
       },
       {
+        id: "recorte-barba-sencillo",
         name: "Recorte de Barba Sencillo",
         price: "$10.000",
         durationMinutes: 20,
         description: "Asesoría y diseño de barba, afeitado con gel y toque final con loción.",
       },
       {
+        id: "afeitado",
         name: "Afeitados",
         price: "$15.000",
         durationMinutes: 30,
@@ -51,6 +58,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     subtitle: "Eleva tu rutina",
     services: [
       {
+        id: "corte-premium",
         name: "Corte Premium",
         price: "$30.000",
         durationMinutes: 40,
@@ -58,6 +66,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
         includes: ["Diagnóstico visajista", "Masaje relajante", "Peinado premium", "Toque final con loción"],
       },
       {
+        id: "corte-premium-barba",
         name: "Corte Premium + Barba",
         price: "$40.000",
         durationMinutes: 60,
@@ -65,6 +74,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
         includes: ["Masaje relajante", "Peinado premium", "Toque final con loción"],
       },
       {
+        id: "barba-premium",
         name: "Barba Premium",
         price: "$25.000",
         durationMinutes: 30,
@@ -85,6 +95,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     subtitle: "Cuidamos tu piel",
     services: [
       {
+        id: "spa-facial",
         name: "Spa Facial",
         price: "$35.000",
         durationMinutes: 45,
@@ -100,6 +111,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
         ],
       },
       {
+        id: "mascarilla-express",
         name: "Mascarilla Express",
         price: "$15.000",
         durationMinutes: 20,
@@ -107,6 +119,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
           "Mascarilla aplicada en toda la cara para limpieza profunda, hidratación y revitalización facial.",
       },
       {
+        id: "masaje-ocular",
         name: "Masaje Ocular",
         price: "$12.000",
         durationMinutes: 15,
@@ -119,11 +132,11 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     title: "Combos",
     subtitle: "Todo lo que necesitas",
     services: [
-      { name: "Corte + Cejas", price: "$25.000", durationMinutes: 35 },
-      { name: "Corte Plus + Cejas", price: "$35.000", durationMinutes: 45 },
-      { name: "Corte + Barba", price: "$30.000", durationMinutes: 50 },
-      { name: "Corte Plus + Barba", price: "$40.000", durationMinutes: 60 },
-      { name: "Corte + Barba + Cejas", price: "$35.000", durationMinutes: 65 },
+      { id: "combo-corte-cejas", name: "Corte + Cejas", price: "$25.000", durationMinutes: 35 },
+      { id: "combo-corte-plus-cejas", name: "Corte Plus + Cejas", price: "$35.000", durationMinutes: 45 },
+      { id: "combo-corte-barba", name: "Corte + Barba", price: "$30.000", durationMinutes: 50 },
+      { id: "combo-corte-plus-barba", name: "Corte Plus + Barba", price: "$40.000", durationMinutes: 60 },
+      { id: "combo-corte-barba-cejas", name: "Corte + Barba + Cejas", price: "$35.000", durationMinutes: 65 },
     ],
   },
   {
@@ -131,8 +144,8 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     title: "Extras",
     subtitle: "Detalles que marcan la diferencia",
     services: [
-      { name: "Cejas", price: "$5.000", durationMinutes: 10, description: "Se realiza con cuchilla." },
-      { name: "Lavado Capilar", price: "$5.000", durationMinutes: 15 },
+      { id: "cejas", name: "Cejas", price: "$5.000", durationMinutes: 10, description: "Se realiza con cuchilla." },
+      { id: "lavado-capilar", name: "Lavado Capilar", price: "$5.000", durationMinutes: 15 },
     ],
   },
   {
@@ -141,12 +154,14 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     subtitle: "Convierte tu corte en una experiencia de bienestar",
     services: [
       {
+        id: "upgrade-renovacion-facial",
         name: "Renovación Facial",
         price: "+$10.000",
         durationMinutes: 15,
         description: "Mascarilla de carbón activado + masaje relajante en cuello, hombros y cabeza.",
       },
       {
+        id: "upgrade-descanso-visual",
         name: "Descanso Visual",
         price: "+$10.000",
         durationMinutes: 15,
@@ -158,18 +173,21 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
 
 export const VIP_EXPERIENCES: Service[] = [
   {
+    id: "vip",
     name: "Experiencia VIP",
     price: "$65.000",
     durationMinutes: 90,
     description: "Corte Plus + Spa Facial + Lavado Capilar",
   },
   {
+    id: "vip-barba",
     name: "Experiencia VIP + Barba",
     price: "$75.000",
     durationMinutes: 105,
     description: "Corte Plus + Spa Facial + Lavado Capilar + Barba Premium",
   },
   {
+    id: "vip-barba-cejas",
     name: "Experiencia VIP + Barba + Cejas",
     price: "$81.000",
     durationMinutes: 120,

@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getCalendarClient, getCalendarIdForBarber, isBarberId } from "./_lib/googleCalendar.js";
 import { InvalidScheduleInputError } from "./_lib/schedule.js";
 import { sendApiError } from "./_lib/http.js";
+import { cancelBookingByEventId } from "./_lib/bookingsRepo.js";
 
 interface CancelRequestBody {
   eventId?: string;
@@ -37,6 +38,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw error;
       }
     }
+
+    // El evento ya no existe en el calendario; reflejarlo en la base.
+    await cancelBookingByEventId(eventId);
 
     res.status(200).json({ success: true });
   } catch (error) {

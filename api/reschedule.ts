@@ -8,6 +8,7 @@ import {
 } from "./_lib/schedule.js";
 import { listBusyIntervals, isRangeFree } from "./_lib/availability.js";
 import { sendApiError } from "./_lib/http.js";
+import { rescheduleBookingByEventId } from "./_lib/bookingsRepo.js";
 
 interface RescheduleRequestBody {
   eventId?: string;
@@ -71,6 +72,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         end: { dateTime: endISO, timeZone: TIMEZONE },
       },
     });
+
+    await rescheduleBookingByEventId(eventId, startISO, endISO);
 
     res.status(200).json({
       id: event.data.id,

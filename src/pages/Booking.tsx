@@ -13,6 +13,7 @@ import Reveal from "../components/Reveal";
 import { SERVICE_CATEGORIES, VIP_EXPERIENCES, sumServiceTotals, formatPriceNumber } from "../data/services";
 import { BARBERS, TIME_SLOTS } from "../data/booking";
 import { PHONE_NUMBER } from "../data/site";
+import { useAuth } from "../auth/useAuth";
 
 const SERVICE_GROUPS = [
   ...SERVICE_CATEGORIES.map((c) => ({ title: c.title, services: c.services })),
@@ -109,6 +110,7 @@ export default function Booking() {
   const [barberId, setBarberId] = useState(BARBERS[0].id);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  const { session, profile } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
@@ -146,6 +148,14 @@ export default function Booking() {
       current.includes(serviceName) ? current.filter((s) => s !== serviceName) : [...current, serviceName]
     );
   };
+
+  // Pre-llena los datos del socio de RED CLUB, sin pisar lo que ya haya
+  // escrito manualmente.
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.full_name) setName((current) => current || profile.full_name || "");
+    if (profile.phone) setPhone((current) => current || profile.phone || "");
+  }, [profile]);
 
   useEffect(() => {
     if (!date || !barberId || selectedServices.length === 0) {
@@ -192,9 +202,17 @@ export default function Booking() {
 
     let result: BookResponse;
     try {
+      // Si hay sesión, el token permite al servidor vincular la reserva
+      // a la cuenta del cliente. Sin sesión se reserva como invitado,
+      // exactamente como antes.
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers.Authorization = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch("/api/book", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ services: selectedServices, barberId, date, time, name, phone, notes }),
       });
 

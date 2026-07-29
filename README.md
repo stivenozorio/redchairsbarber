@@ -22,16 +22,24 @@ ruta declarada en `src/App.tsx`.
 
 ```
 src/
-  components/   Navbar, Footer, Logo, cards, Reveal…
+  auth/         AuthProvider, contexto de sesión y hook useAuth
+  components/   Navbar, Footer, Logo, cards, Reveal, ProtectedRoute…
+    club/       Componentes de RED CLUB (AuthShell, BookingCard)
   data/         Contenido: servicios, precios, fidelización, testimonios…
+  hooks/        useMyBookings…
+  lib/          supabase (navegador), formato de fechas, clases compartidas
   pages/        Inicio, Servicios, Experiencia VIP, Fidelización, Nosotros,
                 Reservar, Contacto
-api/            Funciones serverless (Vercel) para la integración con
-                Google Calendar — availability, book, cancel, reschedule
+    club/       Login, Registro, Recuperar, Restablecer, Callback, Mi cuenta
+  types/        Tipos de las tablas de RED CLUB
+api/            Funciones serverless (Vercel): Google Calendar + Supabase
+  _lib/         Cliente OAuth, cliente admin de Supabase, repositorio de
+                reservas, validación de token, horarios
+supabase/
+  migrations/   Esquema, funciones, RLS y datos iniciales (SQL)
 scripts/        Utilidades de configuración (generador de refresh token)
-vercel.json     Rewrite catch-all a index.html — necesario para que las
-                rutas de React Router (ej. /reservar) no den 404 al
-                navegar directo o recargar la página en producción
+tests/          Suite de pruebas (npm test)
+vercel.json     Rewrite catch-all a index.html + cabeceras de caché
 ```
 
 Toda la información de marca (nombre, WhatsApp, Instagram, dirección,
@@ -42,7 +50,9 @@ horarios) vive en `src/data/site.ts` — un solo lugar para actualizarla.
 ```bash
 npm install
 npm run dev       # http://localhost:5173
-npm run build      # build de producción en dist/
+npm run build     # build de producción en dist/
+npm run lint      # oxlint
+npm test          # suite de pruebas (node --test)
 ```
 
 El formulario de `/reservar` llama a los endpoints de `/api` (ver abajo)
@@ -125,10 +135,87 @@ servidor local para recibir el redirect, y al final imprime el
 `refresh_token` en la terminal para que lo copies a tu `.env` y a
 Vercel. Nunca inventes ni reutilices un token de otro proyecto.
 
-## Próximas integraciones
+## RED CLUB (Supabase)
 
-El sitio está preparado para conectar, sin rediseñar la base:
+RED CLUB es la plataforma de membresías: cuentas de cliente, historial,
+puntos, niveles, recompensas y referidos. **Fase 1 (actual)** entrega
+cuentas, perfiles, rutas protegidas, "Mi cuenta" y la persistencia de
+reservas. El resto del modelo de datos ya existe en la base, listo para
+las fases siguientes sin migrar nada.
 
-- Inicio de sesión de clientes y panel privado
-- Historial de citas y seguimiento del programa de fidelización
-- WooCommerce / tienda en línea
+### Principio de degradación
+
+Si las variables de Supabase no están configuradas, **el sitio público
+funciona exactamente igual que antes**: las rutas del club se ocultan,
+`/club` redirige al inicio y reservar sigue funcionando solo contra
+Google Calendar. Supabase es una capa adicional, nunca un requisito
+para reservar.
+
+### Modelo de datos
+
+| Tabla | Rol |
+|---|---|
+| `profiles` | Extiende `auth.users`. Se crea sola por trigger al registrarse |
+| `barbers`, `services`, `tiers` | Catálogos (lectura pública) |
+| `bookings` | **Fuente de verdad** de las reservas; `google_event_id` es la referencia cruzada |
+| `booking_services` | Servicios de cada reserva, con snapshot de nombre/precio/duración |
+| `points_transactions` | **Ledger** de puntos. El saldo se deriva, nunca se guarda como número suelto |
+| `rewards`, `reward_redemptions` | Catálogo y canjes (Fase 5) |
+| `referrals` | Referidos, con anti-fraude por asistencia (Fase 5) |
+| `memberships` | Membresía de pago (Fase 6) |
+
+Niveles: **BLACK MEMBER** (0–4 visitas), **RED MEMBER** (5–14),
+**GOLD MEMBER** (15–29), **LEGEND MEMBER** (30+). Se derivan de
+`profiles.visit_count`, nunca se asignan a mano.
+
+### Seguridad
+
+- El navegador usa la **anon key**; lo que protege los datos es **Row
+  Level Security**, no el secreto de la llave.
+- La **service-role key** vive solo en `/api` (sin prefijo `VITE_`, para
+  que Vite no pueda incluirla en el bundle).
+- **Puntos, reservas y referidos se escriben solo desde el servidor.** No
+  existen políticas de escritura para el cliente: si las hubiera,
+  cualquiera podría asignarse LEGEND desde la consola del navegador.
+- Las vistas declaran `security_invoker = true` para que respeten el RLS
+  de quien consulta.
+
+### Instalación de la base de datos
+
+En Supabase → **SQL Editor**, ejecutar en orden los archivos de
+`supabase/migrations/`:
+
+1. `0001_schema.sql` — tablas, tipos e índices
+2. `0002_functions.sql` — triggers, funciones y vistas
+3. `0003_rls.sql` — Row Level Security
+4. `0004_seed.sql` — niveles, barberos y servicios
+
+Son idempotentes: se pueden volver a ejecutar sin duplicar datos.
+
+### Flujo de una reserva
+
+```
+Cliente reserva
+   ↓  1. Se guarda en Supabase (status 'pending')
+   ↓  2. Se crea el evento en Google Calendar
+   ↓  3. Se guarda google_event_id y pasa a 'confirmed'
+```
+
+Si el paso 2 falla, la reserva se descarta en la base para no bloquear
+un horario que en realidad está libre. Reservar sin cuenta sigue
+permitido: `bookings.user_id` es nulo para invitados.
+
+### Diagnóstico
+
+- `GET /api/supabase-health` — variables faltantes, existencia de cada
+  tabla y si las semillas se ejecutaron. No escribe nada.
+- `GET /api/calendar-health` — equivalente para Google Calendar.
+
+## Próximas fases
+
+- **Fase 2** — Perfil editable y dashboard de RED CLUB
+- **Fase 3** — Panel del barbero y confirmación de asistencia (única
+  puerta que otorga puntos)
+- **Fase 4** — Puntos visibles, niveles automáticos, tarjeta digital
+- **Fase 5** — Recompensas, canjes y referidos
+- **Fase 6** — Membresía de pago y notificaciones

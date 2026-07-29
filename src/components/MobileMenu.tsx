@@ -3,8 +3,11 @@ import { createPortal } from "react-dom";
 import { Link, NavLink } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { HiX } from "react-icons/hi";
+import { FaUserCircle } from "react-icons/fa";
 import { LogoWordmark } from "./Logo";
 import { NAV_LINKS } from "../data/site";
+import { isSupabaseConfigured } from "../lib/supabase";
+import { useAuth } from "../auth/useAuth";
 
 function useBodyScrollLock(locked: boolean) {
   useEffect(() => {
@@ -47,6 +50,7 @@ interface MobileMenuProps {
 
 export default function MobileMenu({ open, onClose }: MobileMenuProps) {
   useBodyScrollLock(open);
+  const { isAuthenticated } = useAuth();
 
   return createPortal(
     <AnimatePresence>
@@ -86,10 +90,30 @@ export default function MobileMenu({ open, onClose }: MobileMenuProps) {
                 </NavLink>
               </motion.div>
             ))}
+            {isSupabaseConfigured && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 * NAV_LINKS.length }}
+              >
+                <NavLink
+                  to={isAuthenticated ? "/club" : "/club/entrar"}
+                  onClick={onClose}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 font-display text-3xl ${
+                      isActive ? "text-gold" : "text-ivory"
+                    }`
+                  }
+                >
+                  <FaUserCircle size={22} className="text-gold/70" />
+                  {isAuthenticated ? "Mi cuenta" : "Entrar"}
+                </NavLink>
+              </motion.div>
+            )}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 * NAV_LINKS.length }}
+              transition={{ delay: 0.05 * (NAV_LINKS.length + 1) }}
             >
               <Link to="/reservar" onClick={onClose} className="btn-gold mt-4">
                 Reservar cita
