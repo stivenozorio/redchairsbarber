@@ -218,6 +218,14 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
    redclub_diagnostics` en `/api/health`). Este archivo lo repara sin
    tocar nada más; si instalas desde cero con el 0005 actualizado ya no
    hace falta, pero ejecutarlo de todas formas no hace daño.
+7. `0007_grant_table_privileges.sql` — corrige otro permiso: si ya
+   ejecutaste 0003 antes de esta versión, ninguna tabla tenía un
+   `GRANT` explícito para `anon`/`authenticated`/`service_role`. RLS
+   solo filtra filas; sin el `GRANT` de tabla, Postgres responde
+   `permission denied for table X` antes de mirar la política — esto
+   también explica por qué "Mi cuenta" no podía leer las reservas del
+   cliente. Igual que 0006, si instalas desde cero ya no hace falta,
+   pero ejecutarlo no hace daño.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

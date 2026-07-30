@@ -22,6 +22,20 @@ left join pg_class c
  and c.relkind = 'r'
 order by t.nombre;
 
+-- 1b. Permisos de tabla para service_role ------------------------
+-- RLS solo filtra filas; sin este GRANT, Postgres responde
+-- "permission denied for table X" antes de mirar la política.
+select
+  t.nombre as tabla,
+  case when has_table_privilege('service_role', 'public.' || t.nombre, 'SELECT')
+    then '✅ OK' else '❌ Ejecuta 0007_grant_table_privileges.sql' end as estado
+from (values
+  ('profiles'), ('barbers'), ('services'), ('tiers'), ('bookings'),
+  ('booking_services'), ('points_transactions'), ('rewards'),
+  ('reward_redemptions'), ('referrals'), ('memberships')
+) as t(nombre)
+order by t.nombre;
+
 -- 2. profiles está atado a auth.users ---------------------------
 select
   case when count(*) = 1 then '✅ OK' else '❌ FALTA' end as estado,

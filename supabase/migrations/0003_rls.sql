@@ -8,6 +8,58 @@
 -- LEGEND desde la consola del navegador.
 -- ============================================================
 
+-- ------------------------------------------------------------
+-- Permisos base de tabla (además de RLS)
+-- ------------------------------------------------------------
+-- RLS decide QUÉ FILAS puede ver/editar cada rol, pero Postgres exige
+-- primero un GRANT de tabla: sin él, la consulta falla con "permission
+-- denied for table X" antes de que la política de RLS se evalúe
+-- siquiera. Se declaran explícitamente en vez de asumir que el
+-- proyecto de Supabase ya los concedió por defecto.
+
+grant usage on schema public to anon, authenticated, service_role;
+
+-- El servidor (service_role) hace todas las escrituras: perfiles,
+-- reservas, servicios de reserva, puntos, canjes, referidos, etc.
+-- service_role tiene bypassrls, pero igual necesita el permiso de tabla.
+grant select, insert, update, delete on
+  public.profiles,
+  public.barbers,
+  public.services,
+  public.tiers,
+  public.bookings,
+  public.booking_services,
+  public.points_transactions,
+  public.rewards,
+  public.reward_redemptions,
+  public.referrals,
+  public.memberships
+to service_role;
+
+-- Catálogos: lectura pública, tal como ya lo permiten las políticas
+-- "for select using (true)" / "using (active or is_staff())".
+grant select on
+  public.barbers,
+  public.services,
+  public.tiers,
+  public.rewards
+to anon, authenticated;
+
+-- El resto de tablas: solo un usuario con sesión puede llegar a tener
+-- filas visibles (las políticas comparan contra auth.uid()); anon
+-- nunca necesita el permiso porque auth.uid() es null sin sesión.
+grant select on
+  public.bookings,
+  public.booking_services,
+  public.points_transactions,
+  public.reward_redemptions,
+  public.referrals,
+  public.memberships
+to authenticated;
+
+-- El cliente puede leer y editar su propio perfil (RLS restringe la fila).
+grant select, update on public.profiles to authenticated;
+
 alter table public.profiles            enable row level security;
 alter table public.barbers             enable row level security;
 alter table public.services            enable row level security;

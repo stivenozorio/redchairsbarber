@@ -16,6 +16,7 @@ const rls = readMigration("0003_rls.sql");
 const seed = readMigration("0004_seed.sql");
 const profileDiag = readMigration("0005_profile_and_diagnostics.sql");
 const diagnosticsGrantFix = readMigration("0006_fix_diagnostics_grant.sql");
+const tablePrivilegesFix = readMigration("0007_grant_table_privileges.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -197,6 +198,46 @@ test("0006 repara el permiso para bases donde ya se aplicó 0005 sin el grant", 
   );
   assert.ok(
     !/\bdrop\b|\bdelete from\b|\btruncate\b/i.test(diagnosticsGrantFix),
+    "la migración de corrección no debe borrar nada"
+  );
+});
+
+// --- 0003 / 0007: permisos de tabla (RLS no basta sin GRANT) ---
+
+test("0003 concede permisos de tabla a service_role para todas las tablas", () => {
+  const allTables = [
+    "profiles",
+    "barbers",
+    "services",
+    "tiers",
+    "bookings",
+    "booking_services",
+    "points_transactions",
+    "rewards",
+    "reward_redemptions",
+    "referrals",
+    "memberships",
+  ];
+  assert.match(rls, /grant select, insert, update, delete on[\s\S]*?to service_role/);
+  for (const table of allTables) {
+    assert.ok(
+      new RegExp(`public\\.${table}\\b`).test(rls),
+      `Falta conceder permisos de tabla sobre ${table}`
+    );
+  }
+});
+
+test("0003 concede select a authenticated/anon consistente con las políticas RLS", () => {
+  assert.match(rls, /grant select on[\s\S]*?to anon, authenticated/);
+  assert.match(rls, /grant select on[\s\S]*?to authenticated/);
+  assert.match(rls, /grant select, update on public\.profiles to authenticated/);
+});
+
+test("0007 repara los permisos de tabla para bases donde ya se aplicó 0003 sin ellos", () => {
+  assert.match(tablePrivilegesFix, /grant select, insert, update, delete on[\s\S]*?to service_role/);
+  assert.match(tablePrivilegesFix, /grant select, update on public\.profiles to authenticated/);
+  assert.ok(
+    !/\bdrop\b|\bdelete from\b|\btruncate\b/i.test(tablePrivilegesFix),
     "la migración de corrección no debe borrar nada"
   );
 });
