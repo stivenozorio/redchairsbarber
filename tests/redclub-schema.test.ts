@@ -15,6 +15,7 @@ const functions = readMigration("0002_functions.sql");
 const rls = readMigration("0003_rls.sql");
 const seed = readMigration("0004_seed.sql");
 const profileDiag = readMigration("0005_profile_and_diagnostics.sql");
+const diagnosticsGrantFix = readMigration("0006_fix_diagnostics_grant.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -176,6 +177,28 @@ test("el trigger captura el avatar que entrega Google", () => {
 test("la función de diagnóstico existe y no es pública", () => {
   assert.ok(profileDiag.includes("create or replace function public.redclub_diagnostics"));
   assert.match(profileDiag, /revoke all on function public\.redclub_diagnostics\(\) from/);
+});
+
+test("service_role conserva el permiso para llamar al diagnóstico tras el revoke", () => {
+  // "revoke ... from public" también quita el EXECUTE implícito que
+  // service_role heredaba de PUBLIC (no es superusuario en Supabase).
+  // Sin este grant explícito, /api/health falla con
+  // "permission denied for function redclub_diagnostics".
+  assert.match(
+    profileDiag,
+    /grant execute on function public\.redclub_diagnostics\(\) to service_role/
+  );
+});
+
+test("0006 repara el permiso para bases donde ya se aplicó 0005 sin el grant", () => {
+  assert.match(
+    diagnosticsGrantFix,
+    /grant execute on function public\.redclub_diagnostics\(\) to service_role/
+  );
+  assert.ok(
+    !/\bdrop\b|\bdelete from\b|\btruncate\b/i.test(diagnosticsGrantFix),
+    "la migración de corrección no debe borrar nada"
+  );
 });
 
 test("0005 refresca el cache de esquema de PostgREST", () => {

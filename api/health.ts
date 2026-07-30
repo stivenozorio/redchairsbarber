@@ -46,6 +46,26 @@ interface TableCheck {
   error: string | null;
 }
 
+/**
+ * Extrae un mensaje legible de un error de PostgREST. `error.message`
+ * puede venir vacío (por ejemplo si el error real está solo en
+ * `details`/`hint`, o si algún día se vuelve a usar una petición HEAD,
+ * que por spec HTTP nunca trae cuerpo). Nunca debe devolver "".
+ */
+function describePostgrestError(error: {
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+  code?: string | null;
+}): string {
+  const parts = [error.message, error.details, error.hint].filter(
+    (part): part is string => Boolean(part && part.trim())
+  );
+  if (parts.length > 0) return parts.join(" — ");
+  if (error.code) return `Error de Supabase sin mensaje (código ${error.code})`;
+  return "Error de Supabase sin mensaje (respuesta vacía)";
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     res.status(405).json({ error: "Método no permitido" });
@@ -107,17 +127,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ---------------------------------------------------------
   const tables: TableCheck[] = await Promise.all(
     EXPECTED_TABLES.map(async (table): Promise<TableCheck> => {
-      const { count, error } = await supabase
+      // OJO: antes se usaba { head: true } (petición HTTP HEAD), pero una
+      // respuesta HEAD nunca puede traer cuerpo por especificación HTTP —
+      // eso hacía que PostgREST devolviera el error correcto pero
+      // supabase-js recibiera un mensaje vacío. Con una petición GET normal
+      // (limitada a 1 fila para no traer datos de más) el cuerpo del error
+      // sí llega.
+      const { data, count, error } = await supabase
         .from(table)
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact" })
+        .limit(1);
 
       if (error) {
-        const hint = /does not exist/i.test(error.message)
+        const message = describePostgrestError(error);
+        const hint = /does not exist/i.test(message)
           ? " (la tabla no existe: falta ejecutar las migraciones)"
           : "";
-        return { table, ok: false, rows: null, error: `${error.message}${hint}` };
+        return { table, ok: false, rows: null, error: `${message}${hint}` };
       }
-      return { table, ok: true, rows: count ?? 0, error: null };
+      return { table, ok: true, rows: count ?? data?.length ?? 0, error: null };
     })
   );
 
@@ -169,9 +197,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { data: diag, error: diagError } = await supabase.rpc("redclub_diagnostics");
 
   if (diagError) {
-    problems.push(`No se pudo leer el diagnóstico de la base: ${diagError.message}`);
+    const message = describePostgrestError(diagError);
+    problems.push(`No se pudo leer el diagnóstico de la base: ${message}`);
     nextSteps.push(
-      "Ejecuta supabase/migrations/0005_profile_and_diagnostics.sql en Supabase → SQL Editor"
+      /permission denied/i.test(message)
+        ? "Ejecuta supabase/migrations/0006_fix_diagnostics_grant.sql en Supabase → SQL Editor (falta el permiso EXECUTE de service_role sobre redclub_diagnostics)"
+        : "Ejecuta supabase/migrations/0005_profile_and_diagnostics.sql en Supabase → SQL Editor"
     );
   } else if (diag) {
     const d = diag as Record<string, never>;

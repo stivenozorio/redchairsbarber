@@ -191,7 +191,14 @@ begin
 end;
 $$;
 
+-- security definer ya restringe lo que la función puede leer, pero
+-- además se le quita el EXECUTE público: solo el servidor (service_role)
+-- puede llamarla. OJO: "revoke ... from public" también quita el EXECUTE
+-- implícito que service_role heredaba de PUBLIC (no es superusuario en
+-- Supabase), así que hay que devolvérselo explícitamente o /api/health
+-- falla con "permission denied for function redclub_diagnostics".
 revoke all on function public.redclub_diagnostics() from public, anon, authenticated;
+grant execute on function public.redclub_diagnostics() to service_role;
 
 -- ------------------------------------------------------------
 -- Refrescar el cache de esquema de PostgREST

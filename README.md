@@ -181,18 +181,6 @@ Niveles: **BLACK MEMBER** (0–4 visitas), **RED MEMBER** (5–14),
 - Las vistas declaran `security_invoker = true` para que respeten el RLS
   de quien consulta.
 
-### Instalación de la base de datos
-
-En Supabase → **SQL Editor**, ejecutar en orden los archivos de
-`supabase/migrations/`:
-
-1. `0001_schema.sql` — tablas, tipos e índices
-2. `0002_functions.sql` — triggers, funciones y vistas
-3. `0003_rls.sql` — Row Level Security
-4. `0004_seed.sql` — niveles, barberos y servicios
-
-Son idempotentes: se pueden volver a ejecutar sin duplicar datos.
-
 ### Flujo de una reserva
 
 ```
@@ -216,7 +204,20 @@ invitados.
 ### Instalación / actualización de la base
 
 En Supabase → **SQL Editor**, ejecutar en orden los archivos de
-`supabase/migrations/`. Son idempotentes y ninguno borra datos.
+`supabase/migrations/`. Son idempotentes y ninguno borra datos:
+
+1. `0001_schema.sql` — tablas, tipos e índices
+2. `0002_functions.sql` — triggers, funciones y vistas
+3. `0003_rls.sql` — Row Level Security
+4. `0004_seed.sql` — niveles, barberos y servicios
+5. `0005_profile_and_diagnostics.sql` — avatar de Google, control del
+   formulario de teléfono y la función de diagnóstico
+6. `0006_fix_diagnostics_grant.sql` — corrige un permiso: si ya
+   ejecutaste 0005 antes de esta versión, `service_role` se quedó sin
+   poder llamar al diagnóstico (`permission denied for function
+   redclub_diagnostics` en `/api/health`). Este archivo lo repara sin
+   tocar nada más; si instalas desde cero con el 0005 actualizado ya no
+   hace falta, pero ejecutarlo de todas formas no hace daño.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede
