@@ -7,9 +7,11 @@ interface UpdateResult {
   error: string | null;
 }
 
-/** Cambia el estado de una reserva vía /api/admin/booking-status (no
- * escribe directo a Supabase: cancelar también debe liberar el evento de
- * Google Calendar, y eso solo lo puede hacer el servidor). */
+/** Cambia el estado de una reserva vía /api/staff/booking-status (la usan
+ * tanto el panel administrativo como el del barbero). No escribe directo
+ * a Supabase: el servidor decide si un barbero puede tocar esa reserva
+ * (solo las suyas) y nunca toca Google Calendar — un cambio de estado es
+ * solo seguimiento operativo interno. */
 export function useUpdateBookingStatus() {
   const { session } = useAuth();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -20,7 +22,7 @@ export function useUpdateBookingStatus() {
 
       setUpdatingId(bookingId);
       try {
-        const res = await fetch("/api/admin/booking-status", {
+        const res = await fetch("/api/staff/booking-status", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

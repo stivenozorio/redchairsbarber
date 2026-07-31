@@ -25,17 +25,19 @@ src/
   auth/         AuthProvider, contexto de sesión y hook useAuth
   components/   Navbar, Footer, Logo, cards, Reveal, ProtectedRoute…
     club/       Componentes de RED CLUB (AuthShell, BookingCard)
-    admin/      Componentes del panel administrativo (AdminBookingRow)
+    staff/      Componentes del panel administrativo y del barbero
+                (BookingStatusRow, ClientProfileModal)
   data/         Contenido: servicios, precios, fidelización, testimonios…
-  hooks/        useMyBookings, useUpdateBookingStatus…
+  hooks/        useMyBookings, useStaffBookings, useUpdateBookingStatus…
   lib/          supabase (navegador), formato de fechas, clases compartidas
   pages/        Inicio, Servicios, Experiencia VIP, Fidelización, Nosotros,
                 Reservar, Contacto
     club/       Login, Registro, Recuperar, Restablecer, Callback, Mi cuenta
     admin/      Panel, Reservas, Clientes, Servicios, Horarios, Barberos
+    staff/      Panel del barbero (agenda del día, confirmar asistencia)
   types/        Tipos de las tablas de RED CLUB
 api/            Funciones serverless (Vercel): Google Calendar + Supabase
-  admin/        Endpoints exclusivos del panel administrativo
+  staff/        Endpoints del panel administrativo y del panel del barbero
   _lib/         Cliente OAuth, cliente admin de Supabase, repositorio de
                 reservas, validación de token/rol, horario y catálogo vivos
 supabase/
@@ -95,9 +97,10 @@ Torres y Alejandro Reyes no comparten agenda.
   presentes, si cada calendario de barbero es válido y accesible con
   las credenciales actuales. No crea, modifica ni elimina nada — útil
   para confirmar la configuración sin depender de los logs de Vercel.
-- `POST /api/admin/booking-status` — cambia el estado de una reserva
-  (solo `role = 'admin'`); si el nuevo estado es `cancelled`, también
-  borra el evento en Google Calendar. Ver [Panel administrativo](#panel-administrativo-fase-2).
+- `POST /api/staff/booking-status` — cambia el estado de una reserva.
+  Lo usan el panel administrativo (`role = 'admin'`, cualquier reserva)
+  y el panel del barbero (`role = 'barber'`, solo las suyas). Nunca
+  toca Google Calendar — ver [Panel del barbero](#panel-del-barbero-fase-3).
 
 `/api/availability` y `/api/book` ya no usan un horario ni un catálogo
 de servicios fijos: consultan `api/_lib/scheduleRepo.ts` y
@@ -155,10 +158,11 @@ RED CLUB es la plataforma de membresías: cuentas de cliente, historial,
 puntos, niveles, recompensas y referidos. **Fase 1** entregó cuentas,
 perfiles (con avatar de Google y teléfono editable), rutas protegidas,
 "Mi cuenta" con próxima cita e historial, y la persistencia de reservas.
-**Fase 2 (actual)** agrega el panel administrativo: gestión de reservas,
-clientes, servicios, horarios y barberos. El resto del modelo de datos
-(puntos, recompensas, referidos, membresías) ya existe en la base, listo
-para las fases siguientes sin migrar nada.
+**Fase 2** agregó el panel administrativo: gestión de reservas,
+clientes, servicios, horarios y barberos. **Fase 3 (actual)** agrega el
+panel del barbero, con confirmación de asistencia. El resto del modelo
+de datos (puntos, recompensas, referidos, membresías) ya existe en la
+base, listo para las fases siguientes sin migrar nada.
 
 ### Principio de degradación
 
@@ -222,17 +226,62 @@ Incluye:
 
 **Cambiar el estado de una cita a "Completada" no otorga puntos
 todavía** — el trigger `set_booking_status_timestamps` (migración 0008)
-ya registra `completed_at`, que es exactamente el enganche que usará la
-Fase 3 para el sistema de puntos, sin tener que rediseñar nada del
+ya registra `completed_at`, y `bookings.completed_by` (migración 0011)
+registra quién la confirmó. Ese es exactamente el enganche que usará la
+Fase 4 para el sistema de puntos, sin tener que rediseñar nada del
 panel.
 
-Cancelar una cita desde el panel también borra el evento en el
-calendario de Google del barbero — por eso el cambio de estado pasa por
-`POST /api/admin/booking-status` (verifica `role = 'admin'` con la
-service-role key) en vez de una escritura directa desde el navegador;
-el resto de las tablas del panel (servicios, horarios, clientes) sí
-escriben directo a Supabase, protegidas por las políticas de RLS
-`*_admin_insert`/`*_admin_update` de la migración 0010.
+El cambio de estado pasa por `POST /api/staff/booking-status` (con la
+service-role key) en vez de una escritura directa desde el navegador,
+porque ahí es donde se verifica que un barbero solo pueda tocar sus
+propias reservas — eso RLS no lo puede expresar sin duplicar esa misma
+lógica. El resto de las tablas del panel (servicios, horarios,
+clientes) sí escriben directo a Supabase, protegidas por las políticas
+de RLS `*_admin_insert`/`*_admin_update` de la migración 0010.
+
+### Panel del barbero (Fase 3)
+
+`/barbero` — visible y accesible para `role = 'barber'` **o**
+`role = 'admin'` (gateado por `ProtectedRoute requireStaff`, que ya
+existía desde la Fase 1). Un barbero ve únicamente su propia agenda; un
+admin sin barbero vinculado ve un selector para revisar la de
+cualquiera.
+
+Para que un barbero de verdad pueda entrar y que el panel lo acote a
+sus propias citas, hacen falta **dos pasos manuales por cada barbero**,
+igual de únicos que el de volverte admin:
+
+```sql
+-- 1. Darle el rol de barbero a su cuenta ya registrada
+update public.profiles set role = 'barber' where email = 'correo-del-barbero@ejemplo.com';
+
+-- 2. Vincular esa cuenta a su fila en barbers (para que el panel
+--    y /api/staff/booking-status sepan que ESTA cuenta es Camilo/Alejandro)
+update public.barbers set user_id = (
+  select id from public.profiles where email = 'correo-del-barbero@ejemplo.com'
+) where id = 'camilo';
+```
+
+`supabase/verify.sql` (sección 13) muestra qué barberos ya tienen
+cuenta vinculada y con el rol correcto.
+
+El panel muestra, por reserva: nombre y teléfono del cliente, servicios
+reservados, barbero, hora, duración y estado — con un botón **"Marcar
+como completada"** además del selector con los 6 estados. Desde
+cualquier reserva con cuenta se puede abrir la **ficha del cliente**
+(nombre, correo, teléfono, nivel actual, próximas reservas e historial).
+
+**Cambio de comportamiento respecto a la Fase 2:** ahora **ningún**
+cambio de estado —tampoco "Cancelada"— toca Google Calendar; es solo
+seguimiento operativo interno. En la Fase 2, cancelar desde el panel sí
+liberaba el evento en el calendario del barbero. Efecto práctico: si
+cancelas una cita desde el panel administrativo o del barbero, el
+horario seguirá viéndose "ocupado" en Google Calendar hasta que se
+borre por otra vía (por ejemplo, si el propio cliente cancela desde
+`/reservar`, eso sigue usando `/api/cancel` y sí libera el calendario).
+Si más adelante quieres que "Cancelada" también libere el horario,
+dímelo — sería una acción explícita aparte, no un efecto secundario del
+cambio de estado.
 
 ### Seguridad
 
@@ -300,6 +349,8 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
 10. `0010_admin_rls.sql` — políticas de RLS y permisos de tabla para que
     `role = 'admin'` pueda administrar catálogos, horarios y perfiles
     desde el panel.
+11. `0011_booking_confirmation.sql` — agrega `bookings.completed_by`
+    (qué barbero confirmó la asistencia), para el panel del barbero.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede
@@ -318,8 +369,8 @@ guardar**.
 
 ## Próximas fases
 
-- **Fase 3** — Panel del barbero y confirmación de asistencia (única
-  puerta que otorga puntos)
-- **Fase 4** — Puntos visibles, niveles automáticos, tarjeta digital
+- **Fase 4** — Puntos visibles, niveles automáticos y tarjeta digital.
+  "Completada" (con `completed_at`/`completed_by` ya listos) es la
+  puerta que otorgará visitas y puntos.
 - **Fase 5** — Recompensas, canjes y referidos
 - **Fase 6** — Membresía de pago y notificaciones

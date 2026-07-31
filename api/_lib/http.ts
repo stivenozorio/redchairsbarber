@@ -1,7 +1,7 @@
 import type { VercelResponse } from "@vercel/node";
 import { GoogleCalendarConfigError } from "./googleCalendar.js";
 import { InvalidScheduleInputError } from "./schedule.js";
-import { AdminAuthError } from "./auth.js";
+import { StaffAuthError } from "./auth.js";
 
 /** Maps known error types to an HTTP status + safe message, and falls back
  * to a generic 500 for anything unexpected (logging the real cause). */
@@ -11,7 +11,7 @@ export function sendApiError(res: VercelResponse, error: unknown): void {
     return;
   }
 
-  if (error instanceof AdminAuthError) {
+  if (error instanceof StaffAuthError) {
     res.status(error.status).json({ error: error.message });
     return;
   }

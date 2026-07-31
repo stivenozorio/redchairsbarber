@@ -152,3 +152,26 @@ select
   (select count(*) from public.bookings)          as reservas,
   (select count(*) from public.booking_services)  as servicios_reservados,
   (select count(*) from public.bookings where google_event_id is not null) as con_evento_calendar;
+
+-- 12. Columna de confirmación de asistencia (Fase 3) -------------
+select
+  case when exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'bookings' and column_name = 'completed_by'
+  ) then '✅ OK' else '❌ Ejecuta 0011_booking_confirmation.sql' end as estado,
+  'bookings.completed_by' as columna;
+
+-- 13. Personal con acceso al panel del barbero (Fase 3) ----------
+-- Para que un barbero pueda entrar a /barbero necesita role='barber'
+-- en profiles Y una fila en barbers con user_id apuntando a su cuenta.
+-- Ver README (sección "Panel del barbero") para el SQL exacto.
+select
+  b.id as barbero,
+  b.name as nombre,
+  p.email as cuenta_vinculada,
+  case when p.role = 'barber' then '✅ OK'
+       when p.role is null then '⚠️ Sin cuenta vinculada'
+       else '⚠️ La cuenta vinculada no tiene role=barber (tiene: ' || p.role::text || ')' end as estado
+from public.barbers b
+left join public.profiles p on p.id = b.user_id
+order by b.sort_order;

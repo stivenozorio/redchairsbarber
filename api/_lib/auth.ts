@@ -33,30 +33,58 @@ export async function getUserIdFromRequest(req: VercelRequest): Promise<string |
 
 /** A diferencia de getUserIdFromRequest (donde "sin sesión" es un caso
  * válido: reservar sin cuenta debe funcionar), los endpoints del panel
- * administrativo deben fallar fuerte si quien llama no es un admin real. */
-export class AdminAuthError extends Error {
+ * administrativo y del panel del barbero deben fallar fuerte si quien
+ * llama no tiene el rol correspondiente. */
+export class StaffAuthError extends Error {
   readonly status: number;
 
   constructor(message: string, status = 403) {
     super(message);
-    this.name = "AdminAuthError";
+    this.name = "StaffAuthError";
     this.status = status;
   }
 }
 
+export interface StaffIdentity {
+  userId: string;
+  role: "barber" | "admin";
+  /** Solo relevante cuando role === "barber": el barbers.id vinculado a
+   * este perfil (vía barbers.user_id), o null si nadie lo vinculó
+   * todavía. Un admin no está acotado a ningún barbero. */
+  barberId: string | null;
+}
+
 /** Valida el token de sesión y que el perfil correspondiente tenga
- * role='admin'. Se consulta con la service-role key (se salta RLS) porque
- * es el propio chequeo que decide si el resto de la petición procede. */
-export async function requireAdminUserId(req: VercelRequest): Promise<string> {
+ * role='barber' o role='admin'. Se consulta con la service-role key (se
+ * salta RLS) porque es el propio chequeo que decide si el resto de la
+ * petición procede. Para un barbero, además resuelve su barbers.id para
+ * que el endpoint pueda acotar qué reservas puede tocar. */
+export async function requireStaffUserId(req: VercelRequest): Promise<StaffIdentity> {
   const userId = await getUserIdFromRequest(req);
-  if (!userId) throw new AdminAuthError("Debes iniciar sesión.", 401);
+  if (!userId) throw new StaffAuthError("Debes iniciar sesión.", 401);
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) throw new AdminAuthError("El sistema de administración no está disponible.", 500);
+  if (!supabase) throw new StaffAuthError("El sistema de administración no está disponible.", 500);
 
-  const { data, error } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
-  if (error || !data || data.role !== "admin") {
-    throw new AdminAuthError("No tienes permisos de administrador.", 403);
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error || !profile || (profile.role !== "barber" && profile.role !== "admin")) {
+    throw new StaffAuthError("No tienes permisos para esta acción.", 403);
   }
-  return userId;
+
+  if (profile.role === "admin") {
+    return { userId, role: "admin", barberId: null };
+  }
+
+  const { data: barber } = await supabase
+    .from("barbers")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return { userId, role: "barber", barberId: barber?.id ?? null };
 }

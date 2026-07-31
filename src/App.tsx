@@ -33,6 +33,10 @@ const AdminServices = lazy(() => import("./pages/admin/Services"));
 const AdminSchedules = lazy(() => import("./pages/admin/Schedules"));
 const AdminBarbers = lazy(() => import("./pages/admin/Barbers"));
 
+// Panel del barbero: mismo criterio, solo lo descarga quien tiene
+// rol barber o admin.
+const BarberPanel = lazy(() => import("./pages/staff/BarberPanel"));
+
 function RouteFallback() {
   return (
     <div className="flex min-h-[60svh] items-center justify-center bg-obsidian">
@@ -102,6 +106,11 @@ function App() {
               <Route path="horarios" element={<AdminSchedules />} />
               <Route path="barberos" element={<AdminBarbers />} />
             </Route>
+          </Route>
+
+          {/* Panel del barbero (requiere sesión + role='barber' o 'admin') */}
+          <Route element={<ProtectedRoute requireStaff />}>
+            <Route path="/barbero" element={<BarberPanel />} />
           </Route>
         </Routes>
         </Suspense>

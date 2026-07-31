@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { HiMenuAlt4 } from "react-icons/hi";
-import { FaUserCircle, FaUserShield } from "react-icons/fa";
+import { FaCut, FaUserCircle, FaUserShield } from "react-icons/fa";
 import { LogoWordmark } from "./Logo";
 import MobileMenu from "./MobileMenu";
 import { NAV_LINKS } from "../data/site";
@@ -15,7 +15,7 @@ interface NavbarProps {
 export default function Navbar({ onMenuOpenChange }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, isStaff } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -65,6 +65,15 @@ export default function Navbar({ onMenuOpenChange }: NavbarProps) {
             >
               <FaUserShield size={16} />
               Admin
+            </Link>
+          )}
+          {isSupabaseConfigured && isAuthenticated && isStaff && (
+            <Link
+              to="/barbero"
+              className="flex items-center gap-2 font-body text-[13px] uppercase tracking-[0.15em] text-ivory/80 transition-colors duration-300 hover:text-gold"
+            >
+              <FaCut size={16} />
+              Panel del barbero
             </Link>
           )}
           {isSupabaseConfigured && (

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { FaSpinner } from "react-icons/fa";
-import { supabase } from "../../lib/supabase";
-import type { BookingRow } from "../../types/club";
 import { BARBERS } from "../../data/booking";
 import { fieldClass, labelClass } from "../../lib/ui";
-import AdminBookingRow from "../../components/admin/AdminBookingRow";
+import { useStaffBookings } from "../../hooks/useStaffBookings";
+import BookingStatusRow from "../../components/staff/BookingStatusRow";
+import ClientProfileModal from "../../components/staff/ClientProfileModal";
 
 const RESULT_LIMIT = 200;
 
@@ -12,57 +12,24 @@ export default function AdminBookings() {
   const [date, setDate] = useState("");
   const [barberId, setBarberId] = useState("any");
   const [search, setSearch] = useState("");
+  const [clientId, setClientId] = useState<string | null>(null);
 
-  const [bookings, setBookings] = useState<BookingRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { dateFrom, dateTo } = useMemo(() => {
+    if (!date) return { dateFrom: undefined, dateTo: undefined };
+    const next = new Date(`${date}T00:00:00-05:00`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    return { dateFrom: `${date}T00:00:00-05:00`, dateTo: next.toISOString() };
+  }, [date]);
 
-  const load = useCallback(async () => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
+  const { bookings, loading, error, setBookings } = useStaffBookings({
+    barberId,
+    dateFrom,
+    dateTo,
+    search,
+    limit: RESULT_LIMIT,
+  });
 
-    let query = supabase
-      .from("bookings")
-      .select(
-        "id, user_id, barber_id, status, starts_at, ends_at, total_price_cop, total_duration_minutes, customer_name, customer_phone, notes, google_event_id, created_at"
-      )
-      .order("starts_at", { ascending: false })
-      .limit(RESULT_LIMIT);
-
-    if (date) {
-      const next = new Date(`${date}T00:00:00-05:00`);
-      next.setUTCDate(next.getUTCDate() + 1);
-      query = query.gte("starts_at", `${date}T00:00:00-05:00`).lt("starts_at", next.toISOString());
-    }
-    if (barberId !== "any") {
-      query = query.eq("barber_id", barberId);
-    }
-    const term = search.trim();
-    if (term) {
-      const escaped = term.replace(/[%,]/g, "");
-      query = query.or(`customer_name.ilike.%${escaped}%,customer_phone.ilike.%${escaped}%`);
-    }
-
-    const { data, error: fetchError } = await query;
-
-    if (fetchError) {
-      setError(fetchError.message);
-      setBookings([]);
-    } else {
-      setBookings((data as unknown as BookingRow[]) ?? []);
-    }
-    setLoading(false);
-  }, [date, barberId, search]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const handleChanged = (updated: BookingRow) => {
+  const handleChanged = (updated: (typeof bookings)[number]) => {
     setBookings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
   };
 
@@ -118,11 +85,18 @@ export default function AdminBookings() {
               {bookings.length === RESULT_LIMIT ? " (mostrando las más recientes — filtra para ver más)" : ""}
             </p>
             {bookings.map((booking) => (
-              <AdminBookingRow key={booking.id} booking={booking} onChanged={handleChanged} />
+              <BookingStatusRow
+                key={booking.id}
+                booking={booking}
+                onChanged={handleChanged}
+                onOpenClient={setClientId}
+              />
             ))}
           </>
         )}
       </div>
+
+      {clientId && <ClientProfileModal userId={clientId} onClose={() => setClientId(null)} />}
     </div>
   );
 }

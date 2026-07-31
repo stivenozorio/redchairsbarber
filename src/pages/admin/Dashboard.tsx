@@ -1,63 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { FaSpinner } from "react-icons/fa";
-import { supabase } from "../../lib/supabase";
-import type { BookingRow } from "../../types/club";
-import AdminBookingRow from "../../components/admin/AdminBookingRow";
-
-/** Rango de "hoy" en hora de Bogotá (offset fijo -05:00, sin horario de
- * verano — igual que api/_lib/schedule.ts en el servidor). */
-function todayBogotaRange() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Bogota",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  const nextDay = new Date(`${parts}T00:00:00-05:00`);
-  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-  return {
-    dateStr: parts,
-    startISO: `${parts}T00:00:00-05:00`,
-    endISO: nextDay.toISOString(),
-  };
-}
+import { useStaffBookings } from "../../hooks/useStaffBookings";
+import { todayBogotaRange } from "../../lib/format";
+import BookingStatusRow from "../../components/staff/BookingStatusRow";
+import ClientProfileModal from "../../components/staff/ClientProfileModal";
 
 export default function AdminDashboard() {
-  const [bookings, setBookings] = useState<BookingRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { startISO, endISO } = todayBogotaRange();
+  const { bookings, loading, error, setBookings } = useStaffBookings({
+    dateFrom: startISO,
+    dateTo: endISO,
+    ascending: true,
+    limit: 500,
+  });
+  const [clientId, setClientId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    const { startISO, endISO } = todayBogotaRange();
-    const { data, error: fetchError } = await supabase
-      .from("bookings")
-      .select(
-        "id, user_id, barber_id, status, starts_at, ends_at, total_price_cop, total_duration_minutes, customer_name, customer_phone, notes, google_event_id, created_at"
-      )
-      .gte("starts_at", startISO)
-      .lt("starts_at", endISO)
-      .order("starts_at", { ascending: true });
-
-    if (fetchError) {
-      setError(fetchError.message);
-      setBookings([]);
-    } else {
-      setBookings((data as unknown as BookingRow[]) ?? []);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const handleChanged = (updated: BookingRow) => {
+  const handleChanged = (updated: (typeof bookings)[number]) => {
     setBookings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
   };
 
@@ -106,11 +64,18 @@ export default function AdminDashboard() {
             </div>
           ) : (
             bookings.map((booking) => (
-              <AdminBookingRow key={booking.id} booking={booking} onChanged={handleChanged} />
+              <BookingStatusRow
+                key={booking.id}
+                booking={booking}
+                onChanged={handleChanged}
+                onOpenClient={setClientId}
+              />
             ))
           )}
         </div>
       </div>
+
+      {clientId && <ClientProfileModal userId={clientId} onClose={() => setClientId(null)} />}
     </div>
   );
 }

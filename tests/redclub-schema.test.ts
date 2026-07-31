@@ -20,6 +20,7 @@ const tablePrivilegesFix = readMigration("0007_grant_table_privileges.sql");
 const statusExpand = readMigration("0008_booking_status_expand.sql");
 const schedules = readMigration("0009_schedules.sql");
 const adminRls = readMigration("0010_admin_rls.sql");
+const bookingConfirmation = readMigration("0011_booking_confirmation.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -339,11 +340,26 @@ test("0010 concede los permisos de tabla que las políticas de arriba necesitan"
 });
 
 test("0010 no le da a nadie permiso de escritura directa sobre bookings", () => {
-  // El cambio de estado de una cita pasa por /api/admin/booking-status
-  // (service role), porque cancelar también debe borrar el evento de
-  // Google Calendar — eso ninguna política de RLS lo puede hacer.
+  // El cambio de estado de una cita pasa por /api/staff/booking-status
+  // (service role): ahí es donde se verifica que un barbero solo pueda
+  // tocar sus propias reservas, algo que RLS no puede expresar por sí
+  // solo sin duplicar esa misma lógica en una política.
   assert.ok(
     !/create policy \w*bookings\w*\s+on public\.bookings\s+for (insert|update|delete)/i.test(adminRls),
     "no debe haber políticas de escritura sobre bookings para el navegador"
   );
+});
+
+// --- Fase 3 (Panel del barbero): 0011 confirmación de asistencia ---
+
+test("0011 agrega completed_by sin tocar datos existentes", () => {
+  assert.match(bookingConfirmation, /add column if not exists completed_by uuid references public\.profiles/);
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b/i.test(bookingConfirmation),
+    "no debe borrar reservas existentes"
+  );
+});
+
+test("0011 refresca el cache de esquema de PostgREST", () => {
+  assert.ok(bookingConfirmation.includes("notify pgrst, 'reload schema'"));
 });
