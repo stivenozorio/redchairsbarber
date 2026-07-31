@@ -11,15 +11,21 @@ import { isSupabaseConfigured } from "../lib/supabase";
  *
  * Guarda la ruta de origen para devolver al usuario ahí después de
  * iniciar sesión. */
-export default function ProtectedRoute({ requireStaff = false }: { requireStaff?: boolean }) {
-  const { initializing, isAuthenticated, isStaff, profileLoading } = useAuth();
+export default function ProtectedRoute({
+  requireStaff = false,
+  requireAdmin = false,
+}: {
+  requireStaff?: boolean;
+  requireAdmin?: boolean;
+}) {
+  const { initializing, isAuthenticated, isStaff, isAdmin, profileLoading } = useAuth();
   const location = useLocation();
 
   if (!isSupabaseConfigured) {
     return <Navigate to="/" replace />;
   }
 
-  if (initializing || (isAuthenticated && requireStaff && profileLoading)) {
+  if (initializing || (isAuthenticated && (requireStaff || requireAdmin) && profileLoading)) {
     return (
       <div className="flex min-h-[100svh] items-center justify-center bg-obsidian">
         <FaSpinner className="animate-spin text-2xl text-gold" aria-label="Cargando" />
@@ -29,6 +35,10 @@ export default function ProtectedRoute({ requireStaff = false }: { requireStaff?
 
   if (!isAuthenticated) {
     return <Navigate to="/club/entrar" replace state={{ from: location.pathname }} />;
+  }
+
+  if (requireAdmin && !isAdmin) {
+    return <Navigate to="/club" replace />;
   }
 
   if (requireStaff && !isStaff) {

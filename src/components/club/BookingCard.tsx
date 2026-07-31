@@ -1,23 +1,8 @@
 import { FaCalendarAlt, FaClock, FaUser } from "react-icons/fa";
-import type { BookingRow, BookingStatus } from "../../types/club";
+import type { BookingRow } from "../../types/club";
 import { BARBERS } from "../../data/booking";
+import { BOOKING_STATUS_CLASS, BOOKING_STATUS_LABEL } from "../../data/bookingStatus";
 import { formatCop, formatLongDate, formatTime } from "../../lib/format";
-
-const STATUS_LABEL: Record<BookingStatus, string> = {
-  pending: "Pendiente",
-  confirmed: "Confirmada",
-  attended: "Asistida",
-  no_show: "No asistió",
-  cancelled: "Cancelada",
-};
-
-const STATUS_CLASS: Record<BookingStatus, string> = {
-  pending: "border-gold/30 text-gold/80",
-  confirmed: "border-gold/40 text-gold",
-  attended: "border-gold/40 text-gold",
-  no_show: "border-blood/40 text-blood",
-  cancelled: "border-bone/20 text-bone/50",
-};
 
 function barberName(barberId: string): string {
   return BARBERS.find((b) => b.id === barberId)?.name ?? barberId;
@@ -52,10 +37,10 @@ export default function BookingCard({
         </div>
         <span
           className={`shrink-0 rounded-full border px-4 py-1 text-[10px] uppercase tracking-widest2 ${
-            STATUS_CLASS[booking.status]
+            BOOKING_STATUS_CLASS[booking.status]
           }`}
         >
-          {STATUS_LABEL[booking.status]}
+          {BOOKING_STATUS_LABEL[booking.status]}
         </span>
       </div>
 

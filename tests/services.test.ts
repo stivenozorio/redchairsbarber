@@ -68,7 +68,12 @@ test("los barberos coinciden con los calendarios configurables", () => {
   assert.equal(BARBERS.find((b) => b.id === "alejandro")?.name, "Alejandro Reyes");
 });
 
-test("los horarios cubren la jornada publicada", () => {
-  assert.equal(TIME_SLOTS[0], "10:00 am");
-  assert.equal(TIME_SLOTS[TIME_SLOTS.length - 1], "8:00 pm");
+test("las horas candidatas cubren la jornada publicada hoy (10am-8pm)", () => {
+  // TIME_SLOTS es el universo de horas que ofrece el selector; el horario
+  // real (fijo hoy, dinámico por barbero desde el panel administrativo) lo
+  // decide el servidor marcando como no disponibles las que no aplican, así
+  // que el rango se deja más amplio que la jornada publicada a propósito.
+  assert.ok(TIME_SLOTS.includes("10:00 am"), "debe incluir la apertura publicada");
+  assert.ok(TIME_SLOTS.includes("8:00 pm"), "debe incluir el cierre publicado");
+  assert.equal(new Set(TIME_SLOTS).size, TIME_SLOTS.length, "no debe haber horas repetidas");
 });

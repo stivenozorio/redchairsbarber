@@ -212,9 +212,14 @@ export function formatPriceNumber(value: number): string {
   return `$${value.toLocaleString("es-CO")}`;
 }
 
-export function getServicesByNames(names: string[]): Service[] {
+/** `catalog` defaults to the static list bundled with the app. The server
+ * can pass a live catalog fetched from Supabase instead (see
+ * api/_lib/catalogRepo.ts), so that editing a price/duration from the
+ * panel administrativo actually changes what a new booking charges —
+ * without changing the lookup-by-name logic that both share. */
+export function getServicesByNames(names: string[], catalog: Service[] = ALL_BOOKABLE_SERVICES): Service[] {
   return names
-    .map((name) => ALL_BOOKABLE_SERVICES.find((s) => s.name === name))
+    .map((name) => catalog.find((s) => s.name === name))
     .filter((s): s is Service => Boolean(s));
 }
 
@@ -227,8 +232,8 @@ export interface ServiceTotals {
 /** Sums the duration and price of a set of selected services by name —
  * used both for the live total shown to the client and, authoritatively,
  * on the server when validating availability and creating the event. */
-export function sumServiceTotals(names: string[]): ServiceTotals {
-  const services = getServicesByNames(names);
+export function sumServiceTotals(names: string[], catalog: Service[] = ALL_BOOKABLE_SERVICES): ServiceTotals {
+  const services = getServicesByNames(names, catalog);
   const totals = services.reduce(
     (acc, s) => ({
       totalMinutes: acc.totalMinutes + s.durationMinutes,

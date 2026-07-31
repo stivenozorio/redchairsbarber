@@ -25,16 +25,19 @@ src/
   auth/         AuthProvider, contexto de sesión y hook useAuth
   components/   Navbar, Footer, Logo, cards, Reveal, ProtectedRoute…
     club/       Componentes de RED CLUB (AuthShell, BookingCard)
+    admin/      Componentes del panel administrativo (AdminBookingRow)
   data/         Contenido: servicios, precios, fidelización, testimonios…
-  hooks/        useMyBookings…
+  hooks/        useMyBookings, useUpdateBookingStatus…
   lib/          supabase (navegador), formato de fechas, clases compartidas
   pages/        Inicio, Servicios, Experiencia VIP, Fidelización, Nosotros,
                 Reservar, Contacto
     club/       Login, Registro, Recuperar, Restablecer, Callback, Mi cuenta
+    admin/      Panel, Reservas, Clientes, Servicios, Horarios, Barberos
   types/        Tipos de las tablas de RED CLUB
 api/            Funciones serverless (Vercel): Google Calendar + Supabase
+  admin/        Endpoints exclusivos del panel administrativo
   _lib/         Cliente OAuth, cliente admin de Supabase, repositorio de
-                reservas, validación de token, horarios
+                reservas, validación de token/rol, horario y catálogo vivos
 supabase/
   migrations/   Esquema, funciones, RLS y datos iniciales (SQL)
 scripts/        Utilidades de configuración (generador de refresh token)
@@ -92,6 +95,17 @@ Torres y Alejandro Reyes no comparten agenda.
   presentes, si cada calendario de barbero es válido y accesible con
   las credenciales actuales. No crea, modifica ni elimina nada — útil
   para confirmar la configuración sin depender de los logs de Vercel.
+- `POST /api/admin/booking-status` — cambia el estado de una reserva
+  (solo `role = 'admin'`); si el nuevo estado es `cancelled`, también
+  borra el evento en Google Calendar. Ver [Panel administrativo](#panel-administrativo-fase-2).
+
+`/api/availability` y `/api/book` ya no usan un horario ni un catálogo
+de servicios fijos: consultan `api/_lib/scheduleRepo.ts` y
+`api/_lib/catalogRepo.ts`, que leen el horario y los precios/duración
+vivos de Supabase (editables desde el panel) y solo caen al horario
+10am–8pm / catálogo estático del repo si Supabase no está configurado o
+todavía no tiene esos datos — la reserva nunca depende de que el panel
+ya se haya usado.
 
 Toda la lógica compartida vive en `api/_lib/` (cliente OAuth2 de Google,
 resolución de calendario por barbero, conversión de horarios a
@@ -138,10 +152,12 @@ Vercel. Nunca inventes ni reutilices un token de otro proyecto.
 ## RED CLUB (Supabase)
 
 RED CLUB es la plataforma de membresías: cuentas de cliente, historial,
-puntos, niveles, recompensas y referidos. **Fase 1 (actual)** entrega
-cuentas, perfiles (con avatar de Google y teléfono editable), rutas
-protegidas, "Mi cuenta" con próxima cita e historial, y la persistencia
-de reservas. El resto del modelo de datos ya existe en la base, listo
+puntos, niveles, recompensas y referidos. **Fase 1** entregó cuentas,
+perfiles (con avatar de Google y teléfono editable), rutas protegidas,
+"Mi cuenta" con próxima cita e historial, y la persistencia de reservas.
+**Fase 2 (actual)** agrega el panel administrativo: gestión de reservas,
+clientes, servicios, horarios y barberos. El resto del modelo de datos
+(puntos, recompensas, referidos, membresías) ya existe en la base, listo
 para las fases siguientes sin migrar nada.
 
 ### Principio de degradación
@@ -156,9 +172,11 @@ para reservar.
 
 | Tabla | Rol |
 |---|---|
-| `profiles` | Extiende `auth.users`. Se crea sola por trigger al registrarse; guarda nombre, teléfono y avatar |
-| `barbers`, `services`, `tiers` | Catálogos (lectura pública) |
-| `bookings` | **Fuente de verdad** de las reservas; `google_event_id` es la referencia cruzada |
+| `profiles` | Extiende `auth.users`. Se crea sola por trigger al registrarse; guarda nombre, teléfono, avatar y `role` (`client`/`barber`/`admin`) |
+| `barbers`, `services`, `tiers` | Catálogos (lectura pública, escritura solo admin) |
+| `barber_schedules` | Horario semanal por barbero (Fase 2) — reemplaza el horario fijo que antes vivía solo en el código |
+| `schedule_exceptions` | Festivos y horarios especiales por fecha, globales o de un barbero (Fase 2) |
+| `bookings` | **Fuente de verdad** de las reservas; `google_event_id` es la referencia cruzada. Estados: `pending`, `confirmed`, `in_progress`, `completed`, `no_show`, `cancelled` |
 | `booking_services` | Servicios de cada reserva, con snapshot de nombre/precio/duración |
 | `points_transactions` | **Ledger** de puntos. El saldo se deriva, nunca se guarda como número suelto |
 | `rewards`, `reward_redemptions` | Catálogo y canjes (Fase 5) |
@@ -168,6 +186,53 @@ para reservar.
 Niveles: **BLACK MEMBER** (0–4 visitas), **RED MEMBER** (5–14),
 **GOLD MEMBER** (15–29), **LEGEND MEMBER** (30+). Se derivan de
 `profiles.visit_count`, nunca se asignan a mano.
+
+### Panel administrativo (Fase 2)
+
+`/admin` — solo visible y accesible para perfiles con `role = 'admin'`
+(gateado por `ProtectedRoute requireAdmin`, igual patrón que
+`requireStaff`). No hay flujo de "hazte admin" en la interfaz a
+propósito: se otorga a mano, una sola vez por persona, desde el SQL
+Editor:
+
+```sql
+update public.profiles set role = 'admin' where email = 'correo@ejemplo.com';
+```
+
+Incluye:
+
+- **Panel** — resumen del día: citas de hoy, próximas, completadas,
+  canceladas, no asistieron, y la agenda del día con el estado editable
+  de cada cita.
+- **Reservas** — todas las reservas, filtrables por fecha, barbero y
+  cliente (nombre o teléfono), con cambio de estado en línea.
+- **Clientes** — buscar y editar nombre/teléfono de cualquier cliente.
+- **Servicios** — precio, duración y categoría son la fuente real que
+  usa una reserva nueva (no solo el catálogo estático del frontend); un
+  servicio no se borra (puede tener historial), se desactiva.
+- **Horarios** — horario semanal por barbero y excepciones puntuales
+  (festivos, horario especial de un día). Lo consulta directamente
+  `/api/availability` y `/api/book`: cambiarlo aquí cambia qué horas se
+  pueden reservar de verdad.
+- **Barberos** — nombre, orden y activo/inactivo (un barbero inactivo
+  deja de recibir reservas nuevas sin perder su historial). Agregar un
+  barbero *nuevo de verdad* no se puede hacer solo desde aquí: necesita
+  su propio calendario de Google (una variable de entorno más, ver
+  arriba) y no lo cubre esta fase.
+
+**Cambiar el estado de una cita a "Completada" no otorga puntos
+todavía** — el trigger `set_booking_status_timestamps` (migración 0008)
+ya registra `completed_at`, que es exactamente el enganche que usará la
+Fase 3 para el sistema de puntos, sin tener que rediseñar nada del
+panel.
+
+Cancelar una cita desde el panel también borra el evento en el
+calendario de Google del barbero — por eso el cambio de estado pasa por
+`POST /api/admin/booking-status` (verifica `role = 'admin'` con la
+service-role key) en vez de una escritura directa desde el navegador;
+el resto de las tablas del panel (servicios, horarios, clientes) sí
+escriben directo a Supabase, protegidas por las políticas de RLS
+`*_admin_insert`/`*_admin_update` de la migración 0010.
 
 ### Seguridad
 
@@ -226,6 +291,15 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
    también explica por qué "Mi cuenta" no podía leer las reservas del
    cliente. Igual que 0006, si instalas desde cero ya no hace falta,
    pero ejecutarlo no hace daño.
+8. `0008_booking_status_expand.sql` — agrega los estados `in_progress` y
+   `completed` (renombra el antiguo `attended`) y el trigger que sella
+   `completed_at`/`cancelled_at` automáticamente.
+9. `0009_schedules.sql` — crea `barber_schedules` y
+   `schedule_exceptions`, y siembra el horario publicado hoy (lunes a
+   sábado 10am–8pm, domingo cerrado) para los barberos ya existentes.
+10. `0010_admin_rls.sql` — políticas de RLS y permisos de tabla para que
+    `role = 'admin'` pueda administrar catálogos, horarios y perfiles
+    desde el panel.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede
@@ -244,7 +318,6 @@ guardar**.
 
 ## Próximas fases
 
-- **Fase 2** — Perfil editable y dashboard de RED CLUB
 - **Fase 3** — Panel del barbero y confirmación de asistencia (única
   puerta que otorga puntos)
 - **Fase 4** — Puntos visibles, niveles automáticos, tarjeta digital

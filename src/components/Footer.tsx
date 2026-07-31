@@ -103,7 +103,17 @@ export default function Footer() {
 
       <div className="border-t border-gold/10">
         <div className="container-lux flex flex-col items-center justify-between gap-3 py-6 text-xs text-bone/50 md:flex-row">
-          <p>© {new Date().getFullYear()} Red Chairs Barber. Todos los derechos reservados.</p>
+          <p>
+            Copyright © Red Chairs Barber. All Rights Reserved. Design by{" "}
+            <a
+              href="https://digicyus.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gold/80 transition-colors hover:text-gold"
+            >
+              DIGICYUS
+            </a>
+          </p>
           <p className="tracking-widest2 uppercase text-gold/60">Bogotá · Colombia</p>
         </div>
       </div>

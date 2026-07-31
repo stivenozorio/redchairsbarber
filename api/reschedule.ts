@@ -3,9 +3,10 @@ import { getCalendarClient, getCalendarIdForBarber, isBarberId, TIMEZONE } from 
 import {
   buildSlotRange,
   durationMinutesBetween,
-  fitsBusinessHours,
+  fitsWithinHours,
   InvalidScheduleInputError,
 } from "./_lib/schedule.js";
+import { getEffectiveHours } from "./_lib/scheduleRepo.js";
 import { listBusyIntervals, isRangeFree } from "./_lib/availability.js";
 import { sendApiError } from "./_lib/http.js";
 import { rescheduleBookingByEventId } from "./_lib/bookingsRepo.js";
@@ -49,7 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const durationMinutes = durationMinutesBetween(existingStart, existingEnd);
 
-    if (!fitsBusinessHours(time, durationMinutes)) {
+    const hours = await getEffectiveHours(barberId, date);
+    if (!hours || !fitsWithinHours(time, durationMinutes, hours)) {
       res.status(409).json({ error: "Ese horario no cabe en el horario de atención. Elige otro." });
       return;
     }

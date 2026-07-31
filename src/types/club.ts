@@ -3,7 +3,13 @@
 
 export type UserRole = "client" | "barber" | "admin";
 
-export type BookingStatus = "pending" | "confirmed" | "attended" | "no_show" | "cancelled";
+export type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "in_progress"
+  | "completed"
+  | "no_show"
+  | "cancelled";
 
 export interface Profile {
   id: string;

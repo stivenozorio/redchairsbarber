@@ -14,7 +14,8 @@ select
 from (values
   ('profiles'), ('barbers'), ('services'), ('tiers'), ('bookings'),
   ('booking_services'), ('points_transactions'), ('rewards'),
-  ('reward_redemptions'), ('referrals'), ('memberships')
+  ('reward_redemptions'), ('referrals'), ('memberships'),
+  ('barber_schedules'), ('schedule_exceptions')
 ) as t(nombre)
 left join pg_class c
   on c.relname = t.nombre
@@ -35,6 +36,10 @@ from (values
   ('reward_redemptions'), ('referrals'), ('memberships')
 ) as t(nombre)
 order by t.nombre;
+
+-- 1c. Estados de cita disponibles (Fase 2: panel administrativo) ---
+select
+  unnest(enum_range(null::booking_status))::text as estado_disponible;
 
 -- 2. profiles está atado a auth.users ---------------------------
 select
@@ -85,7 +90,9 @@ from (values
   ('on_auth_user_created'),
   ('profiles_set_updated_at'),
   ('bookings_set_updated_at'),
-  ('profiles_protect_fields')
+  ('profiles_protect_fields'),
+  ('bookings_set_status_timestamps'),
+  ('barbers_seed_default_schedule')
 ) as t(nombre);
 
 -- 7. Funciones --------------------------------------------------
@@ -99,7 +106,8 @@ select
 from (values
   ('handle_new_user'), ('generate_referral_code'), ('is_staff'),
   ('is_admin'), ('tier_for_visits'), ('set_updated_at'),
-  ('protect_profile_fields'), ('redclub_diagnostics')
+  ('protect_profile_fields'), ('redclub_diagnostics'),
+  ('set_booking_status_timestamps'), ('seed_default_barber_schedule')
 ) as f(nombre);
 
 -- 8. Vistas -----------------------------------------------------
@@ -123,7 +131,12 @@ from public.barbers
 union all
 select 'services', count(*), 21,
        case when count(*) >= 21 then '✅ OK' else '❌ Ejecuta 0004_seed.sql' end
-from public.services;
+from public.services
+union all
+select 'barber_schedules', count(*), (select count(*) * 7 from public.barbers),
+       case when count(*) >= (select count(*) * 7 from public.barbers) then '✅ OK'
+            else '❌ Ejecuta 0009_schedules.sql' end
+from public.barber_schedules;
 
 -- 10. Políticas RLS por tabla -----------------------------------
 select tablename as tabla, count(*) as politicas

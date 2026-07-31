@@ -23,6 +23,16 @@ const ResetPassword = lazy(() => import("./pages/club/ResetPassword"));
 const AuthCallback = lazy(() => import("./pages/club/AuthCallback"));
 const Account = lazy(() => import("./pages/club/Account"));
 
+// El panel administrativo se carga aparte: solo lo descarga quien
+// realmente entra a /admin (y solo tras confirmar que es admin).
+const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
+const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const AdminBookings = lazy(() => import("./pages/admin/Bookings"));
+const AdminClients = lazy(() => import("./pages/admin/Clients"));
+const AdminServices = lazy(() => import("./pages/admin/Services"));
+const AdminSchedules = lazy(() => import("./pages/admin/Schedules"));
+const AdminBarbers = lazy(() => import("./pages/admin/Barbers"));
+
 function RouteFallback() {
   return (
     <div className="flex min-h-[60svh] items-center justify-center bg-obsidian">
@@ -80,6 +90,18 @@ function App() {
           {/* RED CLUB (requiere sesión) */}
           <Route element={<ProtectedRoute />}>
             <Route path="/club" element={<Account />} />
+          </Route>
+
+          {/* Panel administrativo (requiere sesión + role='admin') */}
+          <Route element={<ProtectedRoute requireAdmin />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="reservas" element={<AdminBookings />} />
+              <Route path="clientes" element={<AdminClients />} />
+              <Route path="servicios" element={<AdminServices />} />
+              <Route path="horarios" element={<AdminSchedules />} />
+              <Route path="barberos" element={<AdminBarbers />} />
+            </Route>
           </Route>
         </Routes>
         </Suspense>

@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import {
   buildSlotRange,
   buildDayRange,
-  fitsBusinessHours,
+  fitsWithinHours,
   durationMinutesBetween,
   assertValidDate,
   InvalidScheduleInputError,
 } from "../api/_lib/schedule.js";
+
+const OFFICE_HOURS = { openMinutes: 10 * 60, closeMinutes: 20 * 60 };
 
 test("buildSlotRange usa el offset fijo de Bogotá", () => {
   const { startISO, endISO } = buildSlotRange("2026-08-10", "10:00 am", 90);
@@ -27,12 +29,19 @@ test("buildDayRange cubre el día completo", () => {
   assert.equal(range.endISO, "2026-08-11T00:00:00-05:00");
 });
 
-test("fitsBusinessHours respeta apertura y cierre", () => {
-  assert.equal(fitsBusinessHours("10:00 am", 60), true, "abre a las 10");
-  assert.equal(fitsBusinessHours("9:00 am", 30), false, "antes de abrir");
-  assert.equal(fitsBusinessHours("7:00 pm", 60), true, "termina justo al cierre");
-  assert.equal(fitsBusinessHours("7:30 pm", 60), false, "se pasa del cierre");
-  assert.equal(fitsBusinessHours("8:00 pm", 30), false, "empieza al cierre");
+test("fitsWithinHours respeta apertura y cierre", () => {
+  assert.equal(fitsWithinHours("10:00 am", 60, OFFICE_HOURS), true, "abre a las 10");
+  assert.equal(fitsWithinHours("9:00 am", 30, OFFICE_HOURS), false, "antes de abrir");
+  assert.equal(fitsWithinHours("7:00 pm", 60, OFFICE_HOURS), true, "termina justo al cierre");
+  assert.equal(fitsWithinHours("7:30 pm", 60, OFFICE_HOURS), false, "se pasa del cierre");
+  assert.equal(fitsWithinHours("8:00 pm", 30, OFFICE_HOURS), false, "empieza al cierre");
+});
+
+test("fitsWithinHours respeta un horario distinto (por ejemplo, más corto un domingo)", () => {
+  const sundayHours = { openMinutes: 11 * 60, closeMinutes: 15 * 60 };
+  assert.equal(fitsWithinHours("11:00 am", 60, sundayHours), true);
+  assert.equal(fitsWithinHours("10:00 am", 60, sundayHours), false, "antes de abrir el domingo");
+  assert.equal(fitsWithinHours("2:30 pm", 60, sundayHours), false, "se pasa del cierre del domingo");
 });
 
 test("durationMinutesBetween calcula la duración de un evento existente", () => {

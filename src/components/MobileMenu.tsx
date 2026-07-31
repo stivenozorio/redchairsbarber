@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, NavLink } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { HiX } from "react-icons/hi";
-import { FaUserCircle } from "react-icons/fa";
+import { FaUserCircle, FaUserShield } from "react-icons/fa";
 import { LogoWordmark } from "./Logo";
 import { NAV_LINKS } from "../data/site";
 import { isSupabaseConfigured } from "../lib/supabase";
@@ -50,7 +50,7 @@ interface MobileMenuProps {
 
 export default function MobileMenu({ open, onClose }: MobileMenuProps) {
   useBodyScrollLock(open);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
 
   return createPortal(
     <AnimatePresence>
@@ -110,10 +110,28 @@ export default function MobileMenu({ open, onClose }: MobileMenuProps) {
                 </NavLink>
               </motion.div>
             )}
+            {isSupabaseConfigured && isAuthenticated && isAdmin && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 * (NAV_LINKS.length + 1) }}
+              >
+                <NavLink
+                  to="/admin"
+                  onClick={onClose}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 font-display text-3xl ${isActive ? "text-gold" : "text-ivory"}`
+                  }
+                >
+                  <FaUserShield size={22} className="text-gold/70" />
+                  Admin
+                </NavLink>
+              </motion.div>
+            )}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 * (NAV_LINKS.length + 1) }}
+              transition={{ delay: 0.05 * (NAV_LINKS.length + 2) }}
             >
               <Link to="/reservar" onClick={onClose} className="btn-gold mt-4">
                 Reservar cita

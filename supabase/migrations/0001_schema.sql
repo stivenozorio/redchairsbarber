@@ -22,10 +22,12 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   -- pending: creada, aún sin confirmar en el calendario
   -- confirmed: creada y sincronizada con Google Calendar
-  -- attended: el barbero confirmó que el cliente asistió (Fase 3+)
+  -- in_progress: el cliente está siendo atendido ahora mismo
+  -- completed: la cita se cumplió (el momento que otorgará puntos en Fase 3)
   -- no_show: el cliente no llegó
+  -- cancelled: cancelada por el cliente o el panel administrativo
   create type booking_status as enum
-    ('pending', 'confirmed', 'attended', 'no_show', 'cancelled');
+    ('pending', 'confirmed', 'in_progress', 'completed', 'no_show', 'cancelled');
 exception when duplicate_object then null; end $$;
 
 do $$ begin
@@ -76,7 +78,7 @@ create table if not exists public.profiles (
 
   -- Denormalizado a propósito: contar visitas en cada consulta sería
   -- caro. Lo actualiza el servidor cuando una reserva pasa a
-  -- 'attended' (Fase 3). El nivel se deriva de este número.
+  -- 'completed' (Fase 3). El nivel se deriva de este número.
   visit_count    integer not null default 0 check (visit_count >= 0),
 
   marketing_opt_in boolean not null default true,
@@ -177,7 +179,9 @@ create table if not exists public.bookings (
 
   source                  text not null default 'web',
 
-  attended_at             timestamptz,
+  -- Se registra solo cuando el estado pasa a 'completed'/'cancelled'
+  -- (ver trigger set_booking_status_timestamps en 0008).
+  completed_at            timestamptz,
   cancelled_at            timestamptz,
   created_at              timestamptz not null default now(),
   updated_at              timestamptz not null default now(),

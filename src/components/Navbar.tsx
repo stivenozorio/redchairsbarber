@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { HiMenuAlt4 } from "react-icons/hi";
-import { FaUserCircle } from "react-icons/fa";
+import { FaUserCircle, FaUserShield } from "react-icons/fa";
 import { LogoWordmark } from "./Logo";
 import MobileMenu from "./MobileMenu";
 import { NAV_LINKS } from "../data/site";
@@ -15,7 +15,7 @@ interface NavbarProps {
 export default function Navbar({ onMenuOpenChange }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -58,6 +58,15 @@ export default function Navbar({ onMenuOpenChange }: NavbarProps) {
         </nav>
 
         <div className="hidden items-center gap-5 lg:flex">
+          {isSupabaseConfigured && isAuthenticated && isAdmin && (
+            <Link
+              to="/admin"
+              className="flex items-center gap-2 font-body text-[13px] uppercase tracking-[0.15em] text-ivory/80 transition-colors duration-300 hover:text-gold"
+            >
+              <FaUserShield size={16} />
+              Admin
+            </Link>
+          )}
           {isSupabaseConfigured && (
             <Link
               to={isAuthenticated ? "/club" : "/club/entrar"}

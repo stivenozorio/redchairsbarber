@@ -17,6 +17,9 @@ const seed = readMigration("0004_seed.sql");
 const profileDiag = readMigration("0005_profile_and_diagnostics.sql");
 const diagnosticsGrantFix = readMigration("0006_fix_diagnostics_grant.sql");
 const tablePrivilegesFix = readMigration("0007_grant_table_privileges.sql");
+const statusExpand = readMigration("0008_booking_status_expand.sql");
+const schedules = readMigration("0009_schedules.sql");
+const adminRls = readMigration("0010_admin_rls.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -246,5 +249,101 @@ test("0005 refresca el cache de esquema de PostgREST", () => {
   assert.ok(
     profileDiag.includes("notify pgrst, 'reload schema'"),
     "sin esto las consultas con relaciones embebidas pueden fallar tras migrar"
+  );
+});
+
+// --- Fase 2 (Panel administrativo): 0008 estados de cita ---
+
+test("0008 agrega 'in_progress' y renombra 'attended' a 'completed'", () => {
+  assert.match(statusExpand, /add value if not exists 'in_progress'/);
+  assert.match(statusExpand, /rename value 'attended' to 'completed'/);
+});
+
+test("0008 renombra attended_at a completed_at sin perder la columna", () => {
+  assert.match(statusExpand, /rename column attended_at to completed_at/);
+});
+
+test("0008 sella completed_at/cancelled_at automáticamente al cambiar de estado", () => {
+  assert.ok(statusExpand.includes("create or replace function public.set_booking_status_timestamps"));
+  assert.match(statusExpand, /new\.status = 'completed'[\s\S]*?new\.completed_at := now\(\)/);
+  assert.match(statusExpand, /new\.status = 'cancelled'[\s\S]*?new\.cancelled_at := now\(\)/);
+});
+
+test("0008 es seguro de re-ejecutar y no borra reservas", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b/i.test(statusExpand),
+    "no debe borrar reservas existentes"
+  );
+});
+
+// --- Fase 2: 0009 horarios dinámicos ---
+
+test("0009 crea horario semanal y excepciones por barbero", () => {
+  assert.ok(schedules.includes("create table if not exists public.barber_schedules"));
+  assert.ok(schedules.includes("create table if not exists public.schedule_exceptions"));
+  assert.match(schedules, /day_of_week\s+smallint not null check \(day_of_week between 0 and 6\)/);
+});
+
+test("0009 exige horas cuando el día está abierto, no cuando está cerrado", () => {
+  assert.match(schedules, /barber_schedules_hours_valid check/);
+  assert.match(schedules, /is_open = false\) or \(open_time is not null/);
+});
+
+test("0009 siembra el horario publicado hoy (lunes a sábado 10-8, domingo cerrado) para los barberos existentes", () => {
+  assert.match(schedules, /time '10:00'/);
+  assert.match(schedules, /time '20:00'/);
+  assert.match(schedules, /d <> 0/);
+});
+
+test("0009 auto-siembra el horario de un barbero nuevo con un trigger", () => {
+  assert.ok(schedules.includes("create or replace function public.seed_default_barber_schedule"));
+  assert.ok(schedules.includes("after insert on public.barbers"));
+});
+
+// --- Fase 2: 0010 RLS y permisos del panel administrativo ---
+
+test("0010 habilita RLS y lectura pública en las tablas de horario", () => {
+  assert.match(adminRls, /alter table public\.barber_schedules\s+enable row level security/);
+  assert.match(adminRls, /alter table public\.schedule_exceptions\s+enable row level security/);
+  assert.ok(adminRls.includes("barber_schedules_select_all"));
+  assert.ok(adminRls.includes("schedule_exceptions_select_all"));
+});
+
+test("0010 solo admin puede escribir catálogos, horarios y otros perfiles", () => {
+  const adminGated = [
+    "barber_schedules_admin_insert",
+    "barber_schedules_admin_update",
+    "schedule_exceptions_admin_insert",
+    "schedule_exceptions_admin_update",
+    "schedule_exceptions_admin_delete",
+    "services_admin_insert",
+    "services_admin_update",
+    "barbers_admin_insert",
+    "barbers_admin_update",
+    "profiles_update_admin",
+  ];
+  // Cada política de escritura debe condicionarse a is_admin(), no a
+  // is_staff() (el panel del barbero es una fase futura y separada).
+  for (const policy of adminGated) {
+    const block = adminRls.match(new RegExp(`create policy ${policy}[\\s\\S]*?;`));
+    assert.ok(block, `Falta la política ${policy}`);
+    assert.match(block![0], /public\.is_admin\(\)/, `${policy} debería condicionarse a is_admin()`);
+  }
+});
+
+test("0010 concede los permisos de tabla que las políticas de arriba necesitan", () => {
+  assert.match(adminRls, /grant insert, update on public\.services to authenticated/);
+  assert.match(adminRls, /grant insert, update on public\.barbers to authenticated/);
+  assert.match(adminRls, /grant insert, update on public\.barber_schedules to authenticated/);
+  assert.match(adminRls, /grant insert, update, delete on public\.schedule_exceptions to authenticated/);
+});
+
+test("0010 no le da a nadie permiso de escritura directa sobre bookings", () => {
+  // El cambio de estado de una cita pasa por /api/admin/booking-status
+  // (service role), porque cancelar también debe borrar el evento de
+  // Google Calendar — eso ninguna política de RLS lo puede hacer.
+  assert.ok(
+    !/create policy \w*bookings\w*\s+on public\.bookings\s+for (insert|update|delete)/i.test(adminRls),
+    "no debe haber políticas de escritura sobre bookings para el navegador"
   );
 });

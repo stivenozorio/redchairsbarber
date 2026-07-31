@@ -27,6 +27,7 @@ export interface AuthContextValue {
   profileLoading: boolean;
   isAuthenticated: boolean;
   isStaff: boolean;
+  isAdmin: boolean;
 
   signUp: (data: SignUpData) => Promise<AuthResult>;
   signIn: (email: string, password: string) => Promise<AuthResult>;

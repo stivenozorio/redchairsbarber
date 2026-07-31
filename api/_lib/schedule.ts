@@ -43,19 +43,29 @@ function totalMinutesToISO(dateStr: string, totalMinutes: number): string {
   return `${effectiveDate}T${pad(hours)}:${pad(minutes)}:00${UTC_OFFSET}`;
 }
 
-// Must match the published schedule in src/data/site.ts (HOURS): "Lunes a
-// sábado, 10:00 a. m. – 8:00 p. m." Update both if the schedule changes.
-const BUSINESS_OPEN_MINUTES = 10 * 60;
-const BUSINESS_CLOSE_MINUTES = 20 * 60;
+// Respaldo histórico: se usa solo cuando Supabase no está configurado o
+// todavía no tiene horarios cargados (ver api/_lib/scheduleRepo.ts), para
+// que las reservas nunca se rompan mientras se completa la migración.
+// Debe coincidir con el horario publicado en src/data/site.ts (HOURS):
+// "Lunes a sábado, 10:00 a. m. – 8:00 p. m."
+export const FALLBACK_OPEN_MINUTES = 10 * 60;
+export const FALLBACK_CLOSE_MINUTES = 20 * 60;
+
+export interface HoursRange {
+  openMinutes: number;
+  closeMinutes: number;
+}
 
 /** Whether a slot starting at `time` and lasting `durationMinutes` fits
- * entirely within business hours (needed now that duration varies with the
- * combination of services selected). */
-export function fitsBusinessHours(time: string, durationMinutes: number): boolean {
-  const { hours, minutes } = parseTimeLabel(time);
-  const startTotalMinutes = hours * 60 + minutes;
+ * entirely within the given open/close range (in minutes since midnight).
+ * Pure y sin dependencias de red a propósito: el horario real (fijo por
+ * ahora, dinámico por barbero más adelante) se resuelve aparte y se pasa
+ * aquí ya calculado, para poder probar esta función sin una base de datos. */
+export function fitsWithinHours(time: string, durationMinutes: number, hours: HoursRange): boolean {
+  const { hours: h, minutes } = parseTimeLabel(time);
+  const startTotalMinutes = h * 60 + minutes;
   const endTotalMinutes = startTotalMinutes + durationMinutes;
-  return startTotalMinutes >= BUSINESS_OPEN_MINUTES && endTotalMinutes <= BUSINESS_CLOSE_MINUTES;
+  return startTotalMinutes >= hours.openMinutes && endTotalMinutes <= hours.closeMinutes;
 }
 
 export interface SlotRange {

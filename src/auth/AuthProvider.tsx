@@ -210,6 +210,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       profileLoading,
       isAuthenticated: Boolean(user),
       isStaff: profile?.role === "barber" || profile?.role === "admin",
+      isAdmin: profile?.role === "admin",
       signUp,
       signIn,
       signInWithGoogle,

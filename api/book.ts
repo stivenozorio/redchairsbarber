@@ -7,7 +7,9 @@ import {
   TIMEZONE,
   type BarberId,
 } from "./_lib/googleCalendar.js";
-import { buildSlotRange, fitsBusinessHours, InvalidScheduleInputError } from "./_lib/schedule.js";
+import { buildSlotRange, fitsWithinHours, InvalidScheduleInputError } from "./_lib/schedule.js";
+import { getEffectiveHours } from "./_lib/scheduleRepo.js";
+import { getActiveBarbers, getActiveServicesCatalog } from "./_lib/catalogRepo.js";
 import { listBusyIntervals, isRangeFree } from "./_lib/availability.js";
 import { sendApiError } from "./_lib/http.js";
 import { getUserIdFromRequest } from "./_lib/auth.js";
@@ -16,7 +18,6 @@ import {
   createBookingRecord,
   discardBooking,
 } from "./_lib/bookingsRepo.js";
-import { BARBERS } from "../src/data/booking.js";
 import { sumServiceTotals, formatPriceNumber } from "../src/data/services.js";
 
 interface BookingRequestBody {
@@ -27,10 +28,6 @@ interface BookingRequestBody {
   name?: string;
   phone?: string;
   notes?: string;
-}
-
-function barberName(barberId: BarberId): string {
-  return BARBERS.find((b) => b.id === barberId)?.name ?? barberId;
 }
 
 function assertBookingBody(body: BookingRequestBody) {
@@ -76,15 +73,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new InvalidScheduleInputError(`Barbero inválido: ${barberId}`);
     }
 
-    const { totalMinutes, totalPrice, services: resolvedServices } = sumServiceTotals(services);
+    const activeBarbers = await getActiveBarbers();
+    const barberName = (id: BarberId): string => activeBarbers.find((b) => b.id === id)?.name ?? id;
+
+    const servicesCatalog = await getActiveServicesCatalog();
+    const { totalMinutes, totalPrice, services: resolvedServices } = sumServiceTotals(
+      services,
+      servicesCatalog
+    );
     if (totalMinutes <= 0) {
       throw new InvalidScheduleInputError("No se reconoció ningún servicio válido.");
-    }
-    if (!fitsBusinessHours(time, totalMinutes)) {
-      res.status(409).json({
-        error: "La duración total de los servicios seleccionados no cabe en el horario de atención a esa hora.",
-      });
-      return;
     }
 
     const calendar = getCalendarClient();
@@ -124,11 +122,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Candidate barbers to try, in order. A specific barber only tries their
     // own calendar; "sin preferencia" tries each barber in turn and books
-    // with whoever is actually free.
-    const candidates: BarberId[] = barberId === "any" ? ["camilo", "alejandro"] : [barberId as BarberId];
+    // with whoever is actually free. Solo se consideran barberos activos:
+    // si el panel administrativo desactivó uno (vacaciones, etc.), deja de
+    // recibir reservas nuevas sin tener que tocar el código.
+    const activeBarberIds = activeBarbers.map((b) => b.id);
+    const requestedCandidates: BarberId[] =
+      barberId === "any" ? ["camilo", "alejandro"] : [barberId as BarberId];
+    const candidates = requestedCandidates.filter((id) => activeBarberIds.includes(id));
+
+    if (candidates.length === 0) {
+      res.status(409).json({
+        error:
+          barberId === "any"
+            ? "No hay barberos disponibles en este momento."
+            : "Ese barbero no está disponible actualmente. Elige otro.",
+      });
+      return;
+    }
+
+    const hoursByCandidate = new Map<BarberId, Awaited<ReturnType<typeof getEffectiveHours>>>();
+    await Promise.all(
+      candidates.map(async (candidate) => {
+        hoursByCandidate.set(candidate, await getEffectiveHours(candidate, date));
+      })
+    );
+
+    const fitsForCandidate = (candidate: BarberId) => {
+      const hours = hoursByCandidate.get(candidate);
+      return Boolean(hours && fitsWithinHours(time, totalMinutes, hours));
+    };
+
+    if (!candidates.some(fitsForCandidate)) {
+      res.status(409).json({
+        error: "Ese horario está fuera del horario de atención. Elige otro.",
+      });
+      return;
+    }
 
     let assignedTo: BarberId | null = null;
     for (const candidate of candidates) {
+      if (!fitsForCandidate(candidate)) continue;
       if (await isBarberFree(calendar, candidate, startISO, endISO)) {
         assignedTo = candidate;
         break;
