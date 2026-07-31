@@ -21,6 +21,7 @@ const statusExpand = readMigration("0008_booking_status_expand.sql");
 const schedules = readMigration("0009_schedules.sql");
 const adminRls = readMigration("0010_admin_rls.sql");
 const bookingConfirmation = readMigration("0011_booking_confirmation.sql");
+const calendarSyncErrors = readMigration("0012_calendar_sync_errors.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -362,4 +363,29 @@ test("0011 agrega completed_by sin tocar datos existentes", () => {
 
 test("0011 refresca el cache de esquema de PostgREST", () => {
   assert.ok(bookingConfirmation.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 3 (ajuste): 0012 auditoría de sincronización con Calendar ---
+
+test("0012 crea calendar_sync_errors referenciando la reserva", () => {
+  assert.ok(calendarSyncErrors.includes("create table if not exists public.calendar_sync_errors"));
+  assert.match(calendarSyncErrors, /booking_id\s+uuid not null references public\.bookings/);
+});
+
+test("0012 es de solo lectura para staff, escritura solo del servidor", () => {
+  assert.match(calendarSyncErrors, /alter table public\.calendar_sync_errors\s+enable row level security/);
+  assert.match(calendarSyncErrors, /for select using \(public\.is_staff\(\)\)/);
+  assert.ok(
+    !/create policy \w*calendar_sync_errors\w*[\s\S]*?for (insert|update|delete)/i.test(calendarSyncErrors),
+    "no debe haber políticas de escritura para el navegador"
+  );
+  assert.match(calendarSyncErrors, /grant select, insert on public\.calendar_sync_errors to service_role/);
+});
+
+test("0012 no borra nada y refresca el cache de PostgREST", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b/i.test(calendarSyncErrors),
+    "no debe borrar datos existentes"
+  );
+  assert.ok(calendarSyncErrors.includes("notify pgrst, 'reload schema'"));
 });

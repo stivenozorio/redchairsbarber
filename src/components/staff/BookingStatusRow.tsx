@@ -27,16 +27,19 @@ export default function BookingStatusRow({
 }) {
   const { updateStatus, updatingId } = useUpdateBookingStatus();
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const saving = updatingId === booking.id;
   const services = (booking.booking_services ?? []).slice().sort((a, b) => a.position - b.position);
 
   const handleChange = async (status: BookingStatus) => {
     setError(null);
+    setWarning(null);
     const result = await updateStatus(booking.id, status);
     if (!result.ok) {
       setError(result.error);
       return;
     }
+    if (result.warning) setWarning(result.warning);
     onChanged({ ...booking, status });
   };
 
@@ -102,6 +105,11 @@ export default function BookingStatusRow({
         {error && (
           <p className="flex items-center gap-1.5 text-xs text-blood">
             <FaExclamationTriangle size={10} /> {error}
+          </p>
+        )}
+        {warning && (
+          <p className="flex max-w-xs items-center gap-1.5 text-right text-xs text-gold">
+            <FaExclamationTriangle size={10} /> {warning}
           </p>
         )}
       </div>

@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireStaffUserId, StaffAuthError } from "../_lib/auth.js";
 import { getSupabaseAdmin } from "../_lib/supabaseAdmin.js";
+import { getCalendarClient, getCalendarIdForBarber, isBarberId } from "../_lib/googleCalendar.js";
+import { logCalendarSyncError } from "../_lib/calendarSyncLog.js";
 import { sendApiError } from "../_lib/http.js";
 import { InvalidScheduleInputError } from "../_lib/schedule.js";
 
@@ -10,11 +12,20 @@ import { InvalidScheduleInputError } from "../_lib/schedule.js";
  * reserva; un barbero solo las suyas (se resuelve su barbers.id vía
  * barbers.user_id — ver requireStaffUserId).
  *
- * A propósito, este endpoint NUNCA toca Google Calendar: un cambio de
- * estado (incluida "Cancelada") es solo información interna de
- * seguimiento operativo. Si de verdad se necesita liberar el horario en
- * el calendario del barbero, eso sigue siendo una acción aparte
- * (api/cancel.ts, la que usa el propio cliente).
+ * Google Calendar solo se toca para UN caso: cuando el nuevo estado es
+ * 'cancelled', se libera el horario borrando el evento — así nunca
+ * queda un cupo bloqueado por una cita que en Supabase ya no existe.
+ * El resto de los estados (incluido 'no_show': la cita sí ocurrió y
+ * debe quedar como registro histórico) son solo seguimiento operativo
+ * interno y no tocan Calendar en absoluto.
+ *
+ * Orden de operaciones para 'cancelled':
+ *   1. Actualizar Supabase.
+ *   2. Solo si eso tuvo éxito, intentar borrar el evento de Calendar.
+ *   3. Si el borrado falla, se registra en calendar_sync_errors (no
+ *      solo en los logs de Vercel, que se pierden con el tiempo) y se
+ *      informa en la respuesta — pero el estado en Supabase NUNCA se
+ *      revierte: ya es la fuente de verdad y el cliente ya lo espera.
  *
  * Cuando el nuevo estado es 'completed':
  *   - el trigger set_booking_status_timestamps (0008) sella
@@ -45,6 +56,15 @@ interface RequestBody {
   status?: string;
 }
 
+/** true si Calendar respondió "ya no existe" (404/410) — borrarlo era
+ * el objetivo de todas formas, no es un fallo real de sincronización. */
+function isAlreadyGoneError(error: unknown): boolean {
+  const status =
+    (error as { code?: number; response?: { status?: number } }).code ??
+    (error as { response?: { status?: number } }).response?.status;
+  return status === 404 || status === 410;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST" && req.method !== "PATCH") {
     res.status(405).json({ error: "Método no permitido" });
@@ -72,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data: booking, error: fetchError } = await supabase
       .from("bookings")
-      .select("id, barber_id, status")
+      .select("id, barber_id, status, google_event_id")
       .eq("id", bookingId)
       .maybeSingle();
 
@@ -98,6 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       updatePayload.completed_by = identity.userId;
     }
 
+    // 1. Actualizar Supabase — es la fuente de verdad y va primero.
     const { data: updated, error: updateError } = await supabase
       .from("bookings")
       .update(updatePayload)
@@ -110,7 +131,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    res.status(200).json({ success: true, booking: updated });
+    // 2. Solo si Supabase quedó bien Y el nuevo estado es 'cancelled',
+    // liberar el horario en el calendario del barbero.
+    let calendarSyncError: string | null = null;
+    if (status === "cancelled" && booking.google_event_id && isBarberId(booking.barber_id)) {
+      try {
+        const calendar = getCalendarClient();
+        await calendar.events.delete({
+          calendarId: getCalendarIdForBarber(booking.barber_id),
+          eventId: booking.google_event_id,
+        });
+      } catch (error) {
+        if (!isAlreadyGoneError(error)) {
+          // 3. Fallo real: se registra para poder corregirlo después,
+          // pero Supabase ya quedó en 'cancelled' y así se queda.
+          const message = error instanceof Error ? error.message : "Error desconocido de Google Calendar.";
+          console.error(`No se pudo liberar el horario en Calendar para la reserva ${bookingId}:`, error);
+          await logCalendarSyncError({
+            bookingId,
+            googleEventId: booking.google_event_id,
+            barberId: booking.barber_id,
+            errorMessage: message,
+          });
+          calendarSyncError =
+            "La reserva se canceló, pero no se pudo liberar el horario en Google Calendar. Revísalo manualmente.";
+        }
+      }
+    }
+
+    res.status(200).json({ success: true, booking: updated, calendarSyncError });
   } catch (error) {
     sendApiError(res, error);
   }

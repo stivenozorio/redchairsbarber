@@ -15,7 +15,7 @@ from (values
   ('profiles'), ('barbers'), ('services'), ('tiers'), ('bookings'),
   ('booking_services'), ('points_transactions'), ('rewards'),
   ('reward_redemptions'), ('referrals'), ('memberships'),
-  ('barber_schedules'), ('schedule_exceptions')
+  ('barber_schedules'), ('schedule_exceptions'), ('calendar_sync_errors')
 ) as t(nombre)
 left join pg_class c
   on c.relname = t.nombre
@@ -175,3 +175,12 @@ select
 from public.barbers b
 left join public.profiles p on p.id = b.user_id
 order by b.sort_order;
+
+-- 14. Reservas canceladas cuyo evento de Calendar no se pudo liberar
+-- (Fase 3, ajuste) — lo que un futuro panel administrativo listaría
+-- para corregir a mano. Vacío = todo sincronizado.
+select
+  e.id, e.booking_id, e.barber_id, e.google_event_id, e.error_message, e.created_at
+from public.calendar_sync_errors e
+where not e.resolved
+order by e.created_at desc;

@@ -99,8 +99,9 @@ Torres y Alejandro Reyes no comparten agenda.
   para confirmar la configuración sin depender de los logs de Vercel.
 - `POST /api/staff/booking-status` — cambia el estado de una reserva.
   Lo usan el panel administrativo (`role = 'admin'`, cualquier reserva)
-  y el panel del barbero (`role = 'barber'`, solo las suyas). Nunca
-  toca Google Calendar — ver [Panel del barbero](#panel-del-barbero-fase-3).
+  y el panel del barbero (`role = 'barber'`, solo las suyas). Solo
+  toca Google Calendar cuando el nuevo estado es `cancelled` (borra el
+  evento para liberar el horario) — ver [Panel del barbero](#panel-del-barbero-fase-3).
 
 `/api/availability` y `/api/book` ya no usan un horario ni un catálogo
 de servicios fijos: consultan `api/_lib/scheduleRepo.ts` y
@@ -186,6 +187,7 @@ para reservar.
 | `rewards`, `reward_redemptions` | Catálogo y canjes (Fase 5) |
 | `referrals` | Referidos, con anti-fraude por asistencia (Fase 5) |
 | `memberships` | Membresía de pago (Fase 6) |
+| `calendar_sync_errors` | Auditoría: cuándo falló liberar un evento de Calendar al cancelar (Fase 3) |
 
 Niveles: **BLACK MEMBER** (0–4 visitas), **RED MEMBER** (5–14),
 **GOLD MEMBER** (15–29), **LEGEND MEMBER** (30+). Se derivan de
@@ -271,17 +273,27 @@ como completada"** además del selector con los 6 estados. Desde
 cualquier reserva con cuenta se puede abrir la **ficha del cliente**
 (nombre, correo, teléfono, nivel actual, próximas reservas e historial).
 
-**Cambio de comportamiento respecto a la Fase 2:** ahora **ningún**
-cambio de estado —tampoco "Cancelada"— toca Google Calendar; es solo
-seguimiento operativo interno. En la Fase 2, cancelar desde el panel sí
-liberaba el evento en el calendario del barbero. Efecto práctico: si
-cancelas una cita desde el panel administrativo o del barbero, el
-horario seguirá viéndose "ocupado" en Google Calendar hasta que se
-borre por otra vía (por ejemplo, si el propio cliente cancela desde
-`/reservar`, eso sigue usando `/api/cancel` y sí libera el calendario).
-Si más adelante quieres que "Cancelada" también libere el horario,
-dímelo — sería una acción explícita aparte, no un efecto secundario del
-cambio de estado.
+**Cómo se sincroniza cada estado con Google Calendar** (Supabase sigue
+siendo la fuente oficial de datos; Calendar es la agenda que usan los
+barberos):
+
+| Estado | Google Calendar |
+|---|---|
+| Pendiente, Confirmada, En proceso, Completada | Sin cambios — solo seguimiento interno |
+| **Cancelada** | **Se borra el evento**, para liberar el horario y que otro cliente pueda reservarlo |
+| No asistió | Sin cambios — la cita ocurrió y queda como registro histórico |
+
+Orden de operaciones al cancelar: 1) actualizar Supabase, 2) solo si
+eso tuvo éxito, intentar borrar el evento de Calendar, 3) si el borrado
+falla, el estado en Supabase **no se revierte** — ya es la fuente de
+verdad y quien canceló ya lo espera. El fallo se registra en
+`calendar_sync_errors` (no solo en los logs de Vercel, que se pierden
+con el tiempo) y la persona que canceló ve un aviso en el panel
+("se canceló, pero no se pudo liberar el horario — revísalo
+manualmente"). `supabase/verify.sql` (sección 14) lista las
+cancelaciones pendientes de corregir a mano; un futuro panel
+administrativo podrá leer esa misma tabla para mostrarlas y
+resolverlas sin depender del SQL Editor.
 
 ### Seguridad
 
@@ -351,6 +363,9 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     desde el panel.
 11. `0011_booking_confirmation.sql` — agrega `bookings.completed_by`
     (qué barbero confirmó la asistencia), para el panel del barbero.
+12. `0012_calendar_sync_errors.sql` — tabla de auditoría para cuando
+    cancelar actualiza Supabase pero falla al liberar el evento en
+    Google Calendar.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede
