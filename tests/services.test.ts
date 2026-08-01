@@ -7,6 +7,7 @@ import {
   sumServiceTotals,
   parsePriceToNumber,
   formatPriceNumber,
+  applyLiveOverrides,
 } from "../src/data/services.js";
 import { BARBERS, TIME_SLOTS } from "../src/data/booking.js";
 
@@ -76,4 +77,24 @@ test("las horas candidatas cubren la jornada publicada hoy (10am-8pm)", () => {
   assert.ok(TIME_SLOTS.includes("10:00 am"), "debe incluir la apertura publicada");
   assert.ok(TIME_SLOTS.includes("8:00 pm"), "debe incluir el cierre publicado");
   assert.equal(new Set(TIME_SLOTS).size, TIME_SLOTS.length, "no debe haber horas repetidas");
+});
+
+test("applyLiveOverrides superpone precio/duración sin tocar nombre ni categoría", () => {
+  const target = ALL_BOOKABLE_SERVICES[0];
+  const overridden = applyLiveOverrides(ALL_BOOKABLE_SERVICES, {
+    [target.id]: { price: "$999.000", durationMinutes: 999 },
+  });
+
+  const result = overridden.find((s) => s.id === target.id);
+  assert.equal(result?.price, "$999.000");
+  assert.equal(result?.durationMinutes, 999);
+  assert.equal(result?.name, target.name, "el nombre no debe cambiar con el override");
+
+  const untouched = overridden.find((s) => s.id !== target.id);
+  const original = ALL_BOOKABLE_SERVICES.find((s) => s.id === untouched?.id);
+  assert.deepEqual(untouched, original, "un servicio sin override debe quedar igual");
+});
+
+test("applyLiveOverrides devuelve el catálogo tal cual cuando no hay overrides (null)", () => {
+  assert.equal(applyLiveOverrides(ALL_BOOKABLE_SERVICES, null), ALL_BOOKABLE_SERVICES);
 });

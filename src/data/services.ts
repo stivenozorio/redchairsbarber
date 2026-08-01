@@ -212,6 +212,29 @@ export function formatPriceNumber(value: number): string {
   return `$${value.toLocaleString("es-CO")}`;
 }
 
+export interface ServiceOverride {
+  price: string;
+  durationMinutes: number;
+}
+
+/** Superpone precio/duración leídos en vivo de Supabase (indexados por
+ * id) sobre el catálogo estático — categorías, descripciones y nombres
+ * siguen viniendo del archivo, solo el precio y la duración cambian.
+ * Un id sin override (todavía no cargó, o Supabase no está configurado)
+ * conserva su valor estático tal cual. Lo usa el formulario de reservas
+ * para que un cambio de precio/duración en el panel administrativo se
+ * vea de inmediato, no solo al confirmar la cita. */
+export function applyLiveOverrides(
+  catalog: Service[],
+  overridesById: Record<string, ServiceOverride> | null
+): Service[] {
+  if (!overridesById) return catalog;
+  return catalog.map((service) => {
+    const override = overridesById[service.id];
+    return override ? { ...service, price: override.price, durationMinutes: override.durationMinutes } : service;
+  });
+}
+
 /** `catalog` defaults to the static list bundled with the app. The server
  * can pass a live catalog fetched from Supabase instead (see
  * api/_lib/catalogRepo.ts), so that editing a price/duration from the

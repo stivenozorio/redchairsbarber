@@ -111,6 +111,13 @@ vivos de Supabase (editables desde el panel) y solo caen al horario
 todavía no tiene esos datos — la reserva nunca depende de que el panel
 ya se haya usado.
 
+El propio formulario de `/reservar` hace lo mismo del lado del cliente:
+`src/hooks/useServiceOverrides.ts` lee precio/duración vivos de
+`services` (lectura pública por RLS) y `applyLiveOverrides` los
+superpone sobre el catálogo estático — así lo que ve el cliente
+mientras elige servicios ya refleja un cambio hecho en
+`/admin/servicios`, no solo lo que valida el servidor al confirmar.
+
 Toda la lógica compartida vive en `api/_lib/` (cliente OAuth2 de Google,
 resolución de calendario por barbero, conversión de horarios a
 `America/Bogota`, chequeo de horario de atención y de solapamiento de

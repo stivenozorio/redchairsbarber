@@ -10,15 +10,18 @@ import {
 } from "react-icons/fa";
 import PageHero from "../components/PageHero";
 import Reveal from "../components/Reveal";
-import { SERVICE_CATEGORIES, VIP_EXPERIENCES, sumServiceTotals, formatPriceNumber } from "../data/services";
+import {
+  SERVICE_CATEGORIES,
+  VIP_EXPERIENCES,
+  ALL_BOOKABLE_SERVICES,
+  sumServiceTotals,
+  formatPriceNumber,
+  applyLiveOverrides,
+} from "../data/services";
 import { BARBERS, TIME_SLOTS } from "../data/booking";
 import { PHONE_NUMBER } from "../data/site";
 import { useAuth } from "../auth/useAuth";
-
-const SERVICE_GROUPS = [
-  ...SERVICE_CATEGORIES.map((c) => ({ title: c.title, services: c.services })),
-  { title: "Experiencias VIP", services: VIP_EXPERIENCES },
-];
+import { useServiceOverrides } from "../hooks/useServiceOverrides";
 
 const fieldClass =
   "w-full rounded-sm border border-gold/20 bg-obsidian px-5 py-4 text-sm text-ivory placeholder:text-bone/40 focus:border-gold focus:outline-none transition-colors disabled:opacity-50";
@@ -119,9 +122,30 @@ export default function Booking() {
   const [successPending, setSuccessPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Precio/duración vivos desde el panel administrativo, superpuestos al
+  // catálogo estático (que sigue dando nombres, categorías y
+  // descripciones). Sin esto, un cambio de precio o duración en
+  // /admin/servicios solo se vería reflejado al confirmar la cita, no
+  // mientras el cliente todavía la está armando.
+  const serviceOverrides = useServiceOverrides();
+  const liveServiceCatalog = useMemo(
+    () => applyLiveOverrides(ALL_BOOKABLE_SERVICES, serviceOverrides),
+    [serviceOverrides]
+  );
+  const SERVICE_GROUPS = useMemo(
+    () => [
+      ...SERVICE_CATEGORIES.map((c) => ({
+        title: c.title,
+        services: applyLiveOverrides(c.services, serviceOverrides),
+      })),
+      { title: "Experiencias VIP", services: applyLiveOverrides(VIP_EXPERIENCES, serviceOverrides) },
+    ],
+    [serviceOverrides]
+  );
+
   const { totalMinutes, totalPrice } = useMemo(
-    () => sumServiceTotals(selectedServices),
-    [selectedServices]
+    () => sumServiceTotals(selectedServices, liveServiceCatalog),
+    [selectedServices, liveServiceCatalog]
   );
 
   const [availability, setAvailability] = useState<Record<string, boolean> | null>(null);
@@ -258,7 +282,9 @@ export default function Booking() {
         "",
         `Barbero: ${result.assignedBarberName}`,
         "Servicios:",
-        ...sumServiceTotals(selectedServices).services.map((s) => `- ${s.name} (${s.price})`),
+        ...sumServiceTotals(selectedServices, liveServiceCatalog).services.map(
+          (s) => `- ${s.name} (${s.price})`
+        ),
         `Valor total: ${formatPriceNumber(result.totalPrice)}`,
         `Fecha: ${date}`,
         `Hora: ${time}`,
