@@ -112,11 +112,20 @@ todavía no tiene esos datos — la reserva nunca depende de que el panel
 ya se haya usado.
 
 El propio formulario de `/reservar` hace lo mismo del lado del cliente:
-`src/hooks/useServiceOverrides.ts` lee precio/duración vivos de
+`src/hooks/useServiceOverrides.ts` lee nombre/precio/duración vivos de
 `services` (lectura pública por RLS) y `applyLiveOverrides` los
 superpone sobre el catálogo estático — así lo que ve el cliente
 mientras elige servicios ya refleja un cambio hecho en
-`/admin/servicios`, no solo lo que valida el servidor al confirmar.
+`/admin/servicios` (incluido renombrar un servicio), no solo lo que
+valida el servidor al confirmar.
+
+**Los servicios se emparejan por `id`, no por nombre.** El id es la
+llave estable (`bookings`/`booking_services` ya lo usaban así desde la
+Fase 1); el nombre es solo texto para mostrar y se puede renombrar
+libremente desde el panel sin romper una reserva en curso ni el
+historial. `sumServiceTotals`/`getServicesByIds` en
+`src/data/services.ts` son la única función de emparejamiento, la
+comparten cliente y servidor.
 
 Toda la lógica compartida vive en `api/_lib/` (cliente OAuth2 de Google,
 resolución de calendario por barbero, conversión de horarios a

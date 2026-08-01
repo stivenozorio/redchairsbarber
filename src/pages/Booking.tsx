@@ -31,7 +31,13 @@ const BOOKING_STORAGE_KEY = "redchairs:booking";
 
 interface StoredBooking {
   id: string;
-  services: string[];
+  /** Ids de servicio: se usan para volver a consultar disponibilidad al
+   * reprogramar (el id no cambia si el servicio se renombra después). */
+  serviceIds: string[];
+  /** Nombres tal como se llamaban al momento de reservar — un snapshot
+   * para mostrar, igual que booking_services.name_snapshot en la base:
+   * no debe cambiar aunque el servicio se renombre más tarde. */
+  serviceNames: string[];
   barberId: string;
   barberName: string;
   date: string;
@@ -70,7 +76,15 @@ interface BookResponse {
 function loadStoredBooking(): StoredBooking | null {
   try {
     const raw = localStorage.getItem(BOOKING_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as StoredBooking) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<StoredBooking>;
+    // Formato anterior (antes de separar ids/nombres): no se puede migrar
+    // con certeza, así que se descarta en vez de arriesgar un crash.
+    if (!Array.isArray(parsed.serviceIds) || !Array.isArray(parsed.serviceNames)) {
+      localStorage.removeItem(BOOKING_STORAGE_KEY);
+      return null;
+    }
+    return parsed as StoredBooking;
   } catch {
     return null;
   }
@@ -90,11 +104,11 @@ function clearStoredBooking() {
 async function fetchAvailability(
   date: string,
   barberId: string,
-  serviceNames: string[]
+  serviceIds: string[]
 ): Promise<AvailabilitySlot[] | null> {
   try {
     const query = new URLSearchParams({ date, barberId }).toString();
-    const servicesParam = serviceNames.map(encodeURIComponent).join(",");
+    const servicesParam = serviceIds.map(encodeURIComponent).join(",");
     const res = await fetch(`/api/availability?${query}&services=${servicesParam}`);
     if (!res.ok) return null;
     const data = (await res.json()) as { slots: AvailabilitySlot[] };
@@ -167,9 +181,9 @@ export default function Booking() {
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
 
-  const toggleService = (serviceName: string) => {
+  const toggleService = (serviceId: string) => {
     setSelectedServices((current) =>
-      current.includes(serviceName) ? current.filter((s) => s !== serviceName) : [...current, serviceName]
+      current.includes(serviceId) ? current.filter((s) => s !== serviceId) : [...current, serviceId]
     );
   };
 
@@ -203,7 +217,7 @@ export default function Booking() {
     if (!rescheduleOpen || !rescheduleDate || !myBooking) return;
     let active = true;
     setRescheduleChecking(true);
-    fetchAvailability(rescheduleDate, myBooking.barberId, myBooking.services).then((slots) => {
+    fetchAvailability(rescheduleDate, myBooking.barberId, myBooking.serviceIds).then((slots) => {
       if (!active) return;
       setRescheduleAvailability(toAvailabilityMap(slots));
       setRescheduleChecking(false);
@@ -261,7 +275,8 @@ export default function Booking() {
 
     const booking: StoredBooking = {
       id: result.id,
-      services: selectedServices,
+      serviceIds: selectedServices,
+      serviceNames: sumServiceTotals(selectedServices, liveServiceCatalog).services.map((s) => s.name),
       barberId: result.assignedBarberId,
       barberName: result.assignedBarberName,
       date,
@@ -390,7 +405,7 @@ export default function Booking() {
                   <div>
                     <p className="eyebrow justify-start before:hidden">Tu reserva</p>
                     <h3 className="mt-3 font-display text-xl text-ivory">
-                      {myBooking.services.join(" + ")}
+                      {myBooking.serviceNames.join(" + ")}
                     </h3>
                     <p className="mt-2 text-sm text-bone/70">
                       {myBooking.barberName} · {myBooking.date} · {myBooking.time} ·{" "}
@@ -507,14 +522,14 @@ export default function Booking() {
                         <div className="space-y-1">
                           {group.services.map((s) => (
                             <label
-                              key={s.name}
+                              key={s.id}
                               className="flex cursor-pointer items-center justify-between gap-3 rounded-sm px-2 py-1.5 text-sm text-ivory/90 transition-colors hover:bg-white/5"
                             >
                               <span className="flex items-center gap-2">
                                 <input
                                   type="checkbox"
-                                  checked={selectedServices.includes(s.name)}
-                                  onChange={() => toggleService(s.name)}
+                                  checked={selectedServices.includes(s.id)}
+                                  onChange={() => toggleService(s.id)}
                                   className="h-4 w-4 accent-gold"
                                 />
                                 {s.name}

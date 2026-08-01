@@ -4,16 +4,16 @@ import { formatPriceNumber, type ServiceOverride } from "../data/services";
 
 interface ServiceRow {
   id: string;
+  name: string;
   price_cop: number;
   duration_minutes: number;
 }
 
 /**
- * Precio/duración vivos por id de servicio, para que el formulario de
- * reservas refleje de inmediato lo que se edite en el panel
- * administrativo (antes solo lo veía el servidor al validar/crear la
- * reserva — el cliente seguía viendo los valores estáticos del archivo
- * mientras elegía servicios).
+ * Nombre/precio/duración vivos por id de servicio, para que el
+ * formulario de reservas refleje de inmediato lo que se edite en el
+ * panel administrativo — incluido renombrar un servicio — en vez de
+ * solo lo que valida el servidor al confirmar la reserva.
  *
  * `services_select_all` (RLS) permite lectura pública, así que esta
  * consulta funciona con la anon key. `null` mientras no haya datos
@@ -30,13 +30,17 @@ export function useServiceOverrides(): Record<string, ServiceOverride> | null {
 
     supabase
       .from("services")
-      .select("id, price_cop, duration_minutes")
+      .select("id, name, price_cop, duration_minutes")
       .eq("active", true)
       .then(({ data, error }) => {
         if (!active || error || !data) return;
         const map: Record<string, ServiceOverride> = {};
         for (const row of data as ServiceRow[]) {
-          map[row.id] = { price: formatPriceNumber(row.price_cop), durationMinutes: row.duration_minutes };
+          map[row.id] = {
+            name: row.name,
+            price: formatPriceNumber(row.price_cop),
+            durationMinutes: row.duration_minutes,
+          };
         }
         setOverrides(map);
       });

@@ -21,17 +21,29 @@ test("formatPriceNumber usa el formato colombiano", () => {
   assert.equal(formatPriceNumber(45000), "$45.000");
 });
 
-test("sumServiceTotals suma duración y precio de varios servicios", () => {
-  const totals = sumServiceTotals(["Corte Premium", "Barba Premium"]);
+test("sumServiceTotals suma duración y precio de varios servicios (por id)", () => {
+  const totals = sumServiceTotals(["corte-premium", "barba-premium"]);
   assert.equal(totals.totalPrice, 55000);
   assert.equal(totals.totalMinutes, 70);
   assert.equal(totals.services.length, 2);
 });
 
-test("sumServiceTotals ignora servicios desconocidos", () => {
-  const totals = sumServiceTotals(["No existe"]);
+test("sumServiceTotals ignora ids desconocidos", () => {
+  const totals = sumServiceTotals(["no-existe"]);
   assert.equal(totals.totalPrice, 0);
   assert.equal(totals.totalMinutes, 0);
+});
+
+test("sumServiceTotals empareja por id, no por nombre (sobrevive a un renombre)", () => {
+  // Si un servicio se renombra en el catálogo (p. ej. desde el panel
+  // administrativo), seguir emparejando por nombre haría que la reserva
+  // ya no lo reconociera. Por eso el id es la llave estable.
+  const catalog = ALL_BOOKABLE_SERVICES.map((s) =>
+    s.id === "corte-premium" ? { ...s, name: "Corte Premium Renombrado" } : s
+  );
+  const totals = sumServiceTotals(["corte-premium"], catalog);
+  assert.equal(totals.services.length, 1);
+  assert.equal(totals.services[0].name, "Corte Premium Renombrado");
 });
 
 test("todos los servicios tienen id único y no vacío", () => {
@@ -40,7 +52,10 @@ test("todos los servicios tienen id único y no vacío", () => {
   assert.equal(new Set(ids).size, ids.length, "los ids deben ser únicos");
 });
 
-test("los nombres de servicio son únicos (se usan como clave en la reserva)", () => {
+test("los nombres de servicio son únicos (evita confundir dos servicios iguales en el selector)", () => {
+  // El id es la llave de emparejamiento (sobrevive a un renombre); esto
+  // solo cuida que la lista que ve el cliente no muestre dos entradas
+  // con el mismo nombre.
   const names = ALL_BOOKABLE_SERVICES.map((s) => s.name);
   assert.equal(new Set(names).size, names.length);
 });
@@ -79,16 +94,17 @@ test("las horas candidatas cubren la jornada publicada hoy (10am-8pm)", () => {
   assert.equal(new Set(TIME_SLOTS).size, TIME_SLOTS.length, "no debe haber horas repetidas");
 });
 
-test("applyLiveOverrides superpone precio/duración sin tocar nombre ni categoría", () => {
+test("applyLiveOverrides superpone nombre/precio/duración sin tocar el id", () => {
   const target = ALL_BOOKABLE_SERVICES[0];
   const overridden = applyLiveOverrides(ALL_BOOKABLE_SERVICES, {
-    [target.id]: { price: "$999.000", durationMinutes: 999 },
+    [target.id]: { name: "Nombre Nuevo", price: "$999.000", durationMinutes: 999 },
   });
 
   const result = overridden.find((s) => s.id === target.id);
+  assert.equal(result?.id, target.id, "el id nunca cambia: es la llave estable");
+  assert.equal(result?.name, "Nombre Nuevo");
   assert.equal(result?.price, "$999.000");
   assert.equal(result?.durationMinutes, 999);
-  assert.equal(result?.name, target.name, "el nombre no debe cambiar con el override");
 
   const untouched = overridden.find((s) => s.id !== target.id);
   const original = ALL_BOOKABLE_SERVICES.find((s) => s.id === untouched?.id);

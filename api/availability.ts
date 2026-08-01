@@ -36,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const date = typeof req.query.date === "string" ? req.query.date : undefined;
   const barberIdRaw = typeof req.query.barberId === "string" ? req.query.barberId : undefined;
-  const serviceNames = parseServicesParam(req.query.services);
+  const serviceIds = parseServicesParam(req.query.services);
 
   try {
     if (!date) {
@@ -47,12 +47,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!barberIdRaw) {
       throw new InvalidScheduleInputError("El parámetro 'barberId' es requerido.");
     }
-    if (serviceNames.length === 0) {
+    if (serviceIds.length === 0) {
       throw new InvalidScheduleInputError("Selecciona al menos un servicio.");
     }
 
     const servicesCatalog = await getActiveServicesCatalog();
-    const { totalMinutes, totalPrice } = sumServiceTotals(serviceNames, servicesCatalog);
+    const { totalMinutes, totalPrice } = sumServiceTotals(serviceIds, servicesCatalog);
     if (totalMinutes <= 0) {
       throw new InvalidScheduleInputError("No se reconoció ningún servicio válido.");
     }

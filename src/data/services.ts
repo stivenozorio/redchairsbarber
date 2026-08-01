@@ -213,17 +213,18 @@ export function formatPriceNumber(value: number): string {
 }
 
 export interface ServiceOverride {
+  name: string;
   price: string;
   durationMinutes: number;
 }
 
-/** Superpone precio/duración leídos en vivo de Supabase (indexados por
- * id) sobre el catálogo estático — categorías, descripciones y nombres
- * siguen viniendo del archivo, solo el precio y la duración cambian.
- * Un id sin override (todavía no cargó, o Supabase no está configurado)
- * conserva su valor estático tal cual. Lo usa el formulario de reservas
- * para que un cambio de precio/duración en el panel administrativo se
- * vea de inmediato, no solo al confirmar la cita. */
+/** Superpone nombre/precio/duración leídos en vivo de Supabase (indexados
+ * por id) sobre el catálogo estático — categorías y descripciones siguen
+ * viniendo del archivo. Un id sin override (todavía no cargó, o Supabase
+ * no está configurado) conserva sus valores estáticos tal cual. Lo usa
+ * el formulario de reservas para que un cambio hecho en el panel
+ * administrativo (incluido renombrar un servicio) se vea de inmediato,
+ * no solo al confirmar la cita. */
 export function applyLiveOverrides(
   catalog: Service[],
   overridesById: Record<string, ServiceOverride> | null
@@ -231,18 +232,23 @@ export function applyLiveOverrides(
   if (!overridesById) return catalog;
   return catalog.map((service) => {
     const override = overridesById[service.id];
-    return override ? { ...service, price: override.price, durationMinutes: override.durationMinutes } : service;
+    return override
+      ? { ...service, name: override.name, price: override.price, durationMinutes: override.durationMinutes }
+      : service;
   });
 }
 
-/** `catalog` defaults to the static list bundled with the app. The server
- * can pass a live catalog fetched from Supabase instead (see
- * api/_lib/catalogRepo.ts), so that editing a price/duration from the
- * panel administrativo actually changes what a new booking charges —
- * without changing the lookup-by-name logic that both share. */
-export function getServicesByNames(names: string[], catalog: Service[] = ALL_BOOKABLE_SERVICES): Service[] {
-  return names
-    .map((name) => catalog.find((s) => s.name === name))
+/** El id es la llave estable de un servicio (ver el comentario de
+ * Service.id más arriba): el nombre se puede editar desde el panel
+ * administrativo sin romper una reserva ya seleccionada, en curso, o
+ * guardada en el historial. `catalog` defaults to the static list
+ * bundled with the app; the server can pass a live catalog fetched from
+ * Supabase instead (see api/_lib/catalogRepo.ts), so that editing a
+ * price/duration/name from the panel administrativo actually changes
+ * what a new booking charges. */
+export function getServicesByIds(ids: string[], catalog: Service[] = ALL_BOOKABLE_SERVICES): Service[] {
+  return ids
+    .map((id) => catalog.find((s) => s.id === id))
     .filter((s): s is Service => Boolean(s));
 }
 
@@ -252,11 +258,11 @@ export interface ServiceTotals {
   services: Service[];
 }
 
-/** Sums the duration and price of a set of selected services by name —
+/** Sums the duration and price of a set of selected services by id —
  * used both for the live total shown to the client and, authoritatively,
  * on the server when validating availability and creating the event. */
-export function sumServiceTotals(names: string[], catalog: Service[] = ALL_BOOKABLE_SERVICES): ServiceTotals {
-  const services = getServicesByNames(names, catalog);
+export function sumServiceTotals(ids: string[], catalog: Service[] = ALL_BOOKABLE_SERVICES): ServiceTotals {
+  const services = getServicesByIds(ids, catalog);
   const totals = services.reduce(
     (acc, s) => ({
       totalMinutes: acc.totalMinutes + s.durationMinutes,
