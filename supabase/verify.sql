@@ -92,7 +92,8 @@ from (values
   ('bookings_set_updated_at'),
   ('profiles_protect_fields'),
   ('bookings_set_status_timestamps'),
-  ('barbers_seed_default_schedule')
+  ('barbers_seed_default_schedule'),
+  ('bookings_award_points')
 ) as t(nombre);
 
 -- 7. Funciones --------------------------------------------------
@@ -107,7 +108,8 @@ from (values
   ('handle_new_user'), ('generate_referral_code'), ('is_staff'),
   ('is_admin'), ('tier_for_visits'), ('set_updated_at'),
   ('protect_profile_fields'), ('redclub_diagnostics'),
-  ('set_booking_status_timestamps'), ('seed_default_barber_schedule')
+  ('set_booking_status_timestamps'), ('seed_default_barber_schedule'),
+  ('award_points_on_completion')
 ) as f(nombre);
 
 -- 8. Vistas -----------------------------------------------------
@@ -184,3 +186,21 @@ select
 from public.calendar_sync_errors e
 where not e.resolved
 order by e.created_at desc;
+
+-- 15. Puntos y niveles (Fase 4) -----------------------------------
+-- Citas completadas CON cuenta que todavía no otorgaron puntos: debe
+-- estar vacío si el trigger bookings_award_points está activo.
+select
+  b.id as reserva, b.user_id, b.status, b.completed_by
+from public.bookings b
+where b.status = 'completed'
+  and b.user_id is not null
+  and not exists (
+    select 1 from public.points_transactions pt
+    where pt.booking_id = b.id and pt.reason = 'booking_attended'
+  );
+
+-- Resumen de socios (nivel + puntos ya calculados vía club_member_summary).
+select user_id, full_name, visit_count, points_balance, tier_id, tier_name
+from public.club_member_summary
+order by points_balance desc;

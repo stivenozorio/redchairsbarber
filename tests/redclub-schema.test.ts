@@ -22,6 +22,7 @@ const schedules = readMigration("0009_schedules.sql");
 const adminRls = readMigration("0010_admin_rls.sql");
 const bookingConfirmation = readMigration("0011_booking_confirmation.sql");
 const calendarSyncErrors = readMigration("0012_calendar_sync_errors.sql");
+const awardPoints = readMigration("0013_award_points_on_completion.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -388,4 +389,37 @@ test("0012 no borra nada y refresca el cache de PostgREST", () => {
     "no debe borrar datos existentes"
   );
   assert.ok(calendarSyncErrors.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (Puntos y niveles): 0013 otorgar puntos al completar ---
+
+test("0013 solo otorga puntos cuando la cita pasa a 'completed' por primera vez", () => {
+  assert.match(awardPoints, /new\.status = 'completed'/);
+  assert.match(awardPoints, /old\.status is distinct from 'completed'/);
+});
+
+test("0013 no otorga puntos a reservas de invitado (sin cuenta)", () => {
+  assert.match(awardPoints, /and new\.user_id is not null/);
+});
+
+test("0013 respeta el índice único: no duplica puntos si se corre dos veces", () => {
+  assert.match(awardPoints, /on conflict \(booking_id\) where reason = 'booking_attended'/);
+  assert.match(awardPoints, /do nothing/);
+});
+
+test("0013 suma la visita a profiles.visit_count en el mismo evento", () => {
+  assert.match(awardPoints, /update public\.profiles\s+set visit_count = visit_count \+ 1/);
+});
+
+test("0013 registra el trigger sobre bookings después de actualizar", () => {
+  assert.ok(awardPoints.includes("create trigger bookings_award_points"));
+  assert.match(awardPoints, /after update on public\.bookings/);
+});
+
+test("0013 no borra nada y refresca el cache de PostgREST", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b/i.test(awardPoints),
+    "no debe borrar datos existentes"
+  );
+  assert.ok(awardPoints.includes("notify pgrst, 'reload schema'"));
 });

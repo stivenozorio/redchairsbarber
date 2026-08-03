@@ -176,10 +176,13 @@ puntos, niveles, recompensas y referidos. **Fase 1** entregó cuentas,
 perfiles (con avatar de Google y teléfono editable), rutas protegidas,
 "Mi cuenta" con próxima cita e historial, y la persistencia de reservas.
 **Fase 2** agregó el panel administrativo: gestión de reservas,
-clientes, servicios, horarios y barberos. **Fase 3 (actual)** agrega el
-panel del barbero, con confirmación de asistencia. El resto del modelo
-de datos (puntos, recompensas, referidos, membresías) ya existe en la
-base, listo para las fases siguientes sin migrar nada.
+clientes, servicios, horarios y barberos. **Fase 3** agregó el panel
+del barbero, con confirmación de asistencia. **Fase 4 (actual)** activa
+puntos y niveles automáticos: al completar una cita se otorgan puntos y
+se suma la visita, y "Mi cuenta" muestra una tarjeta digital con el
+nivel y el progreso. El resto del modelo de datos (recompensas,
+referidos, membresías) ya existe en la base, listo para las fases
+siguientes sin migrar nada.
 
 ### Principio de degradación
 
@@ -208,6 +211,45 @@ para reservar.
 Niveles: **BLACK MEMBER** (0–4 visitas), **RED MEMBER** (5–14),
 **GOLD MEMBER** (15–29), **LEGEND MEMBER** (30+). Se derivan de
 `profiles.visit_count`, nunca se asignan a mano.
+
+### Puntos y niveles automáticos (Fase 4)
+
+Marcar una cita como **"Completada"** desde el panel del barbero o el
+administrativo (`POST /api/staff/booking-status`) dispara el trigger
+`bookings_award_points` (migración 0013), que corre en el mismo cambio
+de estado:
+
+1. Otorga **10 puntos fijos** en `points_transactions` (motivo
+   `booking_attended`) — nunca proporcional al valor de los servicios.
+2. Suma 1 a `profiles.visit_count`, de donde `tier_for_visits` ya
+   deriva el nivel automáticamente (sin lógica nueva: es la misma
+   función y la misma vista `club_member_summary` de la Fase 1).
+
+Reglas explícitas:
+
+- **Solo cuentas con perfil ganan puntos.** Una reserva de invitado
+  (`user_id` nulo) no otorga nada — no hay cuenta a la cual dárselo.
+- **Una vez por reserva.** El índice único
+  `points_tx_one_per_booking_idx` (Fase 1) impide que otorgar puntos dos
+  veces por la misma cita sea posible aunque el trigger se dispare de
+  nuevo; el `ON CONFLICT ... DO NOTHING` del trigger lo respeta.
+- **Sin reversa automática.** Si una cita se corrige de "Completada" a
+  otro estado después, esta versión **no resta** los puntos ni la
+  visita — es una decisión a propósito, no un olvido. Un ajuste manual
+  usaría el motivo `manual_adjustment` que ya existe en el enum, en un
+  panel futuro.
+- Para cambiar los puntos por visita, editar la constante
+  `points_per_visit` dentro de `award_points_on_completion()` (migración
+  0013) y volver a ejecutar el archivo — es idempotente.
+
+**Tarjeta digital** — `src/components/club/DigitalCard.tsx`, visible en
+"Mi cuenta" arriba de los datos del socio. Muestra nombre, nivel,
+puntos y cuántas visitas faltan para el siguiente nivel
+(`visitsToNextTier` en `src/data/tiers.ts`), leyendo `useMemberSummary`
+(la misma vista `club_member_summary`). Es solo visual — sin código QR
+en esta fase — y no se renderiza si Supabase no está configurado o el
+socio todavía no tiene resumen, siguiendo el mismo principio de
+degradación del resto del sitio.
 
 ### Panel administrativo (Fase 2)
 
@@ -242,12 +284,14 @@ Incluye:
   su propio calendario de Google (una variable de entorno más, ver
   arriba) y no lo cubre esta fase.
 
-**Cambiar el estado de una cita a "Completada" no otorga puntos
-todavía** — el trigger `set_booking_status_timestamps` (migración 0008)
-ya registra `completed_at`, y `bookings.completed_by` (migración 0011)
-registra quién la confirmó. Ese es exactamente el enganche que usará la
-Fase 4 para el sistema de puntos, sin tener que rediseñar nada del
-panel.
+**Cambiar el estado de una cita a "Completada" ya otorga puntos y suma
+la visita** (Fase 4, migración 0013) — el trigger
+`set_booking_status_timestamps` (migración 0008) sella `completed_at`,
+`bookings.completed_by` (migración 0011) registra quién la confirmó, y
+`bookings_award_points` (migración 0013) usa ese mismo cambio de estado
+como enganche para el ledger de puntos. Ver
+["Puntos y niveles automáticos"](#puntos-y-niveles-automáticos-fase-4)
+arriba.
 
 El cambio de estado pasa por `POST /api/staff/booking-status` (con la
 service-role key) en vez de una escritura directa desde el navegador,
@@ -382,6 +426,8 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
 12. `0012_calendar_sync_errors.sql` — tabla de auditoría para cuando
     cancelar actualiza Supabase pero falla al liberar el evento en
     Google Calendar.
+13. `0013_award_points_on_completion.sql` — trigger que otorga puntos y
+    suma la visita cuando una cita con cuenta pasa a "Completada".
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede
@@ -400,8 +446,5 @@ guardar**.
 
 ## Próximas fases
 
-- **Fase 4** — Puntos visibles, niveles automáticos y tarjeta digital.
-  "Completada" (con `completed_at`/`completed_by` ya listos) es la
-  puerta que otorgará visitas y puntos.
 - **Fase 5** — Recompensas, canjes y referidos
 - **Fase 6** — Membresía de pago y notificaciones

@@ -4,6 +4,7 @@ import PageHero from "../../components/PageHero";
 import Reveal from "../../components/Reveal";
 import BookingCard from "../../components/club/BookingCard";
 import ProfileCard from "../../components/club/ProfileCard";
+import DigitalCard from "../../components/club/DigitalCard";
 import PhonePrompt from "../../components/club/PhonePrompt";
 import { useAuth } from "../../auth/useAuth";
 import { useMyBookings } from "../../hooks/useMyBookings";
@@ -27,9 +28,14 @@ export default function Account() {
           <PhonePrompt />
 
           <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr]">
-            <Reveal>
-              <ProfileCard />
-            </Reveal>
+            <div className="space-y-10">
+              <Reveal>
+                <DigitalCard userId={user?.id} />
+              </Reveal>
+              <Reveal delay={0.05}>
+                <ProfileCard />
+              </Reveal>
+            </div>
 
             <div className="space-y-10">
               <Reveal delay={0.1}>
