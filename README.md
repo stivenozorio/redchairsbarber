@@ -102,6 +102,8 @@ Torres y Alejandro Reyes no comparten agenda.
   y el panel del barbero (`role = 'barber'`, solo las suyas). Solo
   toca Google Calendar cuando el nuevo estado es `cancelled` (borra el
   evento para liberar el horario) — ver [Panel del barbero](#panel-del-barbero-fase-3).
+- `POST /api/staff/block-slot` — bloquea un horario de un barbero para
+  un cliente presencial — ver [Bloquear horarios](#bloquear-horarios-para-clientes-presenciales-fase-4).
 
 `/api/availability` y `/api/book` ya no usan un horario ni un catálogo
 de servicios fijos: consultan `api/_lib/scheduleRepo.ts` y
@@ -260,6 +262,62 @@ puntos y cuántas visitas faltan para el siguiente nivel
 en esta fase — y no se renderiza si Supabase no está configurado o el
 socio todavía no tiene resumen, siguiendo el mismo principio de
 degradación del resto del sitio.
+
+### Cumpleaños del socio (Fase 4, ajuste)
+
+`profiles.birthday` existía desde la Fase 1 (pensado para el motivo
+`birthday_bonus` del enum `points_reason`), pero nunca se pedía ni se
+mostraba en ningún lado. La migración `0015_club_summary_birthday.sql`
+lo agrega a `club_member_summary`; el dato en sí se captura en tres
+lugares:
+
+- **"Mi cuenta"** (`ProfileCard.tsx`) — el socio lo edita junto a su
+  teléfono.
+- **Panel administrativo → Clientes** (`Clients.tsx`) — un admin puede
+  cargarlo a mano para un cliente que no lo haya puesto.
+- **Ficha del cliente** (`ClientProfileModal.tsx`, se abre desde una
+  reserva en el panel administrativo o del barbero) — de solo lectura,
+  para saber a quién darle el premio de cumpleaños en el momento.
+
+Esta fase solo agrega el campo. **El canje del premio en sí (otorgar
+puntos automáticamente el día del cumpleaños) queda para la Fase 5**
+("Recompensas, canjes y referidos") — el motivo `birthday_bonus` ya
+existe en la base para cuando se construya. Mientras tanto,
+`supabase/verify.sql` (sección 16) lista quién cumple años este mes
+para dar el premio a mano.
+
+### Bloquear horarios para clientes presenciales (Fase 4, ajuste)
+
+Un barbero (o un admin, eligiendo el barbero) puede bloquear un
+horario específico desde `/barbero` (`BlockSlotForm.tsx`, arriba de la
+agenda) para reservarlo a un cliente que llega sin cita — ese horario
+deja de ofrecerse en `/reservar` de inmediato.
+
+**Por qué no es una tabla nueva:** `/api/availability` decide qué horas
+están libres consultando **solo Google Calendar** (nunca Supabase), así
+que un bloqueo tiene que existir como un evento real en el calendario
+del barbero para que de verdad deje de ofrecerse — una fila en Supabase
+sola no alcanzaría. La forma más simple de lograrlo, sin duplicar toda
+la lógica de conflictos/horario de `/api/book`, fue reutilizar
+`bookings` con `source = 'blocked'`: mismo flujo de siempre (evento en
+Calendar + fila en `bookings`), sin servicios ni cuenta asociada, con
+`customer_name = 'Bloqueado (uso interno)'`.
+
+- `POST /api/staff/block-slot` — recibe `{barberId, date, time,
+  durationMinutes, note}`. Un barbero solo puede bloquear su propia
+  agenda (mismo criterio que `booking-status.ts`); un admin, la de
+  cualquiera. Valida horario de atención y que el barbero esté
+  realmente libre, igual que una reserva normal.
+- **Desbloquear no necesita un endpoint nuevo:** un bloqueo es una
+  reserva más, así que cambiar su estado a `cancelled` con el
+  `/api/staff/booking-status` que ya existe libera el horario en
+  Calendar automáticamente. `BookingStatusRow.tsx` muestra los bloqueos
+  con una fila simplificada (badge "Bloqueado" en vez del selector de
+  estado) y un botón único "Desbloquear".
+- Los bloqueos se excluyen de los conteos del panel ("Agenda del
+  día", "Pendientes", etc. en `BarberPanel.tsx`/`Dashboard.tsx`): no son
+  citas reales.
+- `supabase/verify.sql` (sección 17) lista los bloqueos activos.
 
 ### Panel administrativo (Fase 2)
 
@@ -445,6 +503,8 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     trigger de la Fase 4 otorga los puntos correctamente en la base,
     pero la tarjeta digital de "Mi cuenta" no muestra nada porque el
     navegador recibe `permission denied for view club_member_summary`.
+15. `0015_club_summary_birthday.sql` — agrega `birthday` a
+    `club_member_summary` para poder mostrarlo en la ficha del cliente.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

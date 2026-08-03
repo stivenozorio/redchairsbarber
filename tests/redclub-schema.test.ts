@@ -24,6 +24,7 @@ const bookingConfirmation = readMigration("0011_booking_confirmation.sql");
 const calendarSyncErrors = readMigration("0012_calendar_sync_errors.sql");
 const awardPoints = readMigration("0013_award_points_on_completion.sql");
 const grantSummaryViews = readMigration("0014_grant_club_summary_views.sql");
+const summaryBirthday = readMigration("0015_club_summary_birthday.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -474,4 +475,24 @@ test("toda vista declarada tiene GRANT SELECT explícito para 'authenticated'", 
       `Falta GRANT SELECT a authenticated sobre la vista ${view} (causa "permission denied for view" en el navegador)`
     );
   }
+});
+
+// --- Fase 4 (ajuste): 0015 expone el cumpleaños en club_member_summary ---
+
+test("0015 agrega birthday a club_member_summary sin quitar columnas existentes", () => {
+  assert.match(summaryBirthday, /p\.birthday/);
+  // Las columnas que ya consumía el frontend (Fase 1-4) deben seguir ahí:
+  // CREATE OR REPLACE VIEW puede agregar columnas, pero un olvido de
+  // copiar una columna existente sería una regresión silenciosa.
+  for (const column of ["p.full_name", "p.email", "p.phone", "p.visit_count", "p.referral_code"]) {
+    assert.ok(summaryBirthday.includes(column), `No debe perderse la columna ${column}`);
+  }
+});
+
+test("0015 no borra nada y refresca el cache de PostgREST", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b/i.test(summaryBirthday),
+    "no debe borrar datos existentes"
+  );
+  assert.ok(summaryBirthday.includes("notify pgrst, 'reload schema'"));
 });

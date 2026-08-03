@@ -9,6 +9,7 @@ import { todayBogotaRange } from "../../lib/format";
 import { useStaffBookings } from "../../hooks/useStaffBookings";
 import BookingStatusRow from "../../components/staff/BookingStatusRow";
 import ClientProfileModal from "../../components/staff/ClientProfileModal";
+import BlockSlotForm from "../../components/staff/BlockSlotForm";
 import type { BookingStatus } from "../../types/club";
 
 const STATUS_FILTERS: ("all" | BookingStatus)[] = ["all", ...BOOKING_STATUS_ORDER];
@@ -60,7 +61,7 @@ export default function BarberPanel() {
     return { dateFrom: `${date}T00:00:00-05:00`, dateTo: next.toISOString() };
   }, [date]);
 
-  const { bookings, loading, error, setBookings } = useStaffBookings({
+  const { bookings, loading, error, setBookings, reload } = useStaffBookings({
     barberId: effectiveBarberId,
     dateFrom,
     dateTo,
@@ -75,12 +76,16 @@ export default function BarberPanel() {
 
   const filtered = statusFilter === "all" ? bookings : bookings.filter((b) => b.status === statusFilter);
 
+  // Los bloqueos (source === 'blocked') no son citas reales — se
+  // excluyen de las tarjetas de resumen para no inflar "Agenda del
+  // día"/"Pendientes" con horarios reservados para clientes presenciales.
+  const realBookings = bookings.filter((b) => b.source !== "blocked");
   const counts = {
-    total: bookings.length,
-    pendientes: bookings.filter((b) => b.status === "pending" || b.status === "confirmed").length,
-    completadas: bookings.filter((b) => b.status === "completed").length,
-    canceladas: bookings.filter((b) => b.status === "cancelled").length,
-    noAsistio: bookings.filter((b) => b.status === "no_show").length,
+    total: realBookings.length,
+    pendientes: realBookings.filter((b) => b.status === "pending" || b.status === "confirmed").length,
+    completadas: realBookings.filter((b) => b.status === "completed").length,
+    canceladas: realBookings.filter((b) => b.status === "cancelled").length,
+    noAsistio: realBookings.filter((b) => b.status === "no_show").length,
   };
 
   const tiles = [
@@ -158,6 +163,14 @@ export default function BarberPanel() {
                   className={fieldClass}
                 />
               </div>
+            </div>
+
+            <div className="mt-8">
+              <BlockSlotForm
+                barberId={effectiveBarberId === "any" ? null : effectiveBarberId}
+                date={date}
+                onBlocked={() => void reload()}
+              />
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2">

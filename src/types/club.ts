@@ -52,6 +52,11 @@ export interface BookingRow {
   notes: string | null;
   google_event_id: string | null;
   created_at: string;
+  /** 'web' = reserva normal de un cliente. 'blocked' = el barbero
+   * bloqueó ese horario para un cliente presencial (ver
+   * api/staff/block-slot.ts) — no es una cita real. Columna de texto
+   * libre en la base, así que se deja abierta a valores futuros. */
+  source: string;
   booking_services?: BookingServiceRow[];
 }
 
@@ -62,6 +67,7 @@ export interface ClubMemberSummary {
   full_name: string | null;
   email: string | null;
   phone: string | null;
+  birthday: string | null;
   visit_count: number;
   referral_code: string | null;
   points_balance: number;

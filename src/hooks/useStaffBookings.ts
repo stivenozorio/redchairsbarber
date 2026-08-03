@@ -53,7 +53,7 @@ export function useStaffBookings(filters: StaffBookingsFilters): UseStaffBooking
     let query = supabase
       .from("bookings")
       .select(
-        "id, user_id, barber_id, status, starts_at, ends_at, total_price_cop, total_duration_minutes, customer_name, customer_phone, notes, google_event_id, created_at"
+        "id, user_id, barber_id, status, starts_at, ends_at, total_price_cop, total_duration_minutes, customer_name, customer_phone, notes, google_event_id, created_at, source"
       )
       .order("starts_at", { ascending })
       .limit(limit);

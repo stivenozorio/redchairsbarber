@@ -20,14 +20,17 @@ export default function AdminDashboard() {
   };
 
   const now = Date.now();
+  // Los bloqueos (source === 'blocked') no son citas reales — se
+  // excluyen de las tarjetas de resumen, igual que en el panel del barbero.
+  const realBookings = bookings.filter((b) => b.source !== "blocked");
   const counts = {
-    total: bookings.length,
-    proximas: bookings.filter(
+    total: realBookings.length,
+    proximas: realBookings.filter(
       (b) => new Date(b.starts_at).getTime() >= now && !["cancelled", "no_show", "completed"].includes(b.status)
     ).length,
-    completadas: bookings.filter((b) => b.status === "completed").length,
-    canceladas: bookings.filter((b) => b.status === "cancelled").length,
-    noAsistio: bookings.filter((b) => b.status === "no_show").length,
+    completadas: realBookings.filter((b) => b.status === "completed").length,
+    canceladas: realBookings.filter((b) => b.status === "cancelled").length,
+    noAsistio: realBookings.filter((b) => b.status === "no_show").length,
   };
 
   const tiles = [

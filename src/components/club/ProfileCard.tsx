@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import {
+  FaBirthdayCake,
   FaCheckCircle,
   FaEnvelope,
   FaExclamationTriangle,
@@ -12,14 +13,20 @@ import {
 } from "react-icons/fa";
 import { useAuth } from "../../auth/useAuth";
 import { fieldClass, labelClass } from "../../lib/ui";
+import { formatBirthday } from "../../lib/format";
 
-/** Datos del socio: correo de solo lectura, nombre y teléfono editables. */
+const TODAY = new Date().toISOString().split("T")[0];
+
+/** Datos del socio: correo de solo lectura, nombre, teléfono y
+ * cumpleaños editables. El cumpleaños se guarda para poder redimir un
+ * premio de RED CLUB cuando el socio cumpla años (Fase 5). */
 export default function ProfileCard() {
   const { user, profile, profileLoading, updateProfile, signOut } = useAuth();
 
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [birthday, setBirthday] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -27,6 +34,7 @@ export default function ProfileCard() {
   useEffect(() => {
     setFullName(profile?.full_name ?? "");
     setPhone(profile?.phone ?? "");
+    setBirthday(profile?.birthday ?? "");
   }, [profile]);
 
   const email = profile?.email ?? user?.email ?? "";
@@ -47,6 +55,7 @@ export default function ProfileCard() {
     const { error: updateError } = await updateProfile({
       full_name: fullName.trim(),
       phone: phone.trim() || null,
+      birthday: birthday || null,
     });
     setSaving(false);
 
@@ -111,6 +120,20 @@ export default function ProfileCard() {
                   placeholder="Ej. 320 392 5995"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
+
+              <div>
+                <label className={labelClass} htmlFor="profile-birthday">
+                  <FaBirthdayCake size={11} /> Cumpleaños
+                </label>
+                <input
+                  id="profile-birthday"
+                  type="date"
+                  max={TODAY}
+                  value={birthday}
+                  onChange={(e) => setBirthday(e.target.value)}
                   className={fieldClass}
                 />
               </div>
@@ -181,6 +204,15 @@ export default function ProfileCard() {
                     <p className="text-[10px] uppercase tracking-widest2 text-bone/40">Teléfono</p>
                     <p className="mt-1 text-sm text-ivory/90">
                       {profile?.phone?.trim() || "Sin registrar"}
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-4">
+                  <FaBirthdayCake className="mt-1 shrink-0 text-gold/70" size={14} />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest2 text-bone/40">Cumpleaños</p>
+                    <p className="mt-1 text-sm text-ivory/90">
+                      {profile?.birthday ? formatBirthday(profile.birthday) : "Sin registrar"}
                     </p>
                   </div>
                 </li>

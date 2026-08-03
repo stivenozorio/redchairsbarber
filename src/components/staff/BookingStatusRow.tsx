@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FaCheck, FaExclamationTriangle, FaSpinner, FaUser } from "react-icons/fa";
+import { FaBan, FaCheck, FaExclamationTriangle, FaSpinner, FaUser } from "react-icons/fa";
 import type { BookingRow, BookingStatus } from "../../types/club";
 import { BOOKING_STATUS_CLASS, BOOKING_STATUS_LABEL, BOOKING_STATUS_ORDER } from "../../data/bookingStatus";
 import { BARBERS } from "../../data/booking";
@@ -11,6 +11,61 @@ function barberName(barberId: string): string {
 }
 
 const DONE_STATUSES: BookingStatus[] = ["completed", "cancelled"];
+
+/** Bloqueos (source === 'blocked', ver api/staff/block-slot.ts) no son
+ * citas reales: se muestran con su propia fila, mucho más simple, y un
+ * único botón "Desbloquear" en vez del selector de estado completo. */
+function BlockedSlotRow({ booking, onChanged }: { booking: BookingRow; onChanged: (updated: BookingRow) => void }) {
+  const { updateStatus, updatingId } = useUpdateBookingStatus();
+  const [error, setError] = useState<string | null>(null);
+  const saving = updatingId === booking.id;
+
+  const handleUnblock = async () => {
+    setError(null);
+    const result = await updateStatus(booking.id, "cancelled");
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onChanged({ ...booking, status: "cancelled" });
+  };
+
+  if (booking.status === "cancelled") return null;
+
+  return (
+    <div className="card-lux flex flex-col gap-4 border-bone/20 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="flex items-center gap-2 font-display text-lg text-bone/70">
+          <FaBan size={14} className="text-bone/40" /> Bloqueado
+        </p>
+        {booking.notes && <p className="mt-1 text-sm text-bone/60">{booking.notes}</p>}
+        <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs uppercase tracking-widest2 text-bone/50">
+          <span>{formatShortDate(booking.starts_at)}</span>
+          <span>{formatTime(booking.starts_at)}</span>
+          <span>{barberName(booking.barber_id)}</span>
+          <span>{booking.total_duration_minutes} min</span>
+        </p>
+      </div>
+
+      <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void handleUnblock()}
+          className="btn-outline !py-2 !px-4 text-xs disabled:opacity-50"
+        >
+          {saving ? <FaSpinner className="animate-spin" /> : <FaBan size={11} />}
+          <span className="ml-2">Desbloquear</span>
+        </button>
+        {error && (
+          <p className="flex items-center gap-1.5 text-xs text-blood">
+            <FaExclamationTriangle size={10} /> {error}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Fila de reserva reutilizada por el panel administrativo y el panel
  * del barbero: mismo componente, mismo endpoint de cambio de estado
@@ -30,6 +85,10 @@ export default function BookingStatusRow({
   const [warning, setWarning] = useState<string | null>(null);
   const saving = updatingId === booking.id;
   const services = (booking.booking_services ?? []).slice().sort((a, b) => a.position - b.position);
+
+  if (booking.source === "blocked") {
+    return <BlockedSlotRow booking={booking} onChanged={onChanged} />;
+  }
 
   const handleChange = async (status: BookingStatus) => {
     setError(null);

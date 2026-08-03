@@ -213,3 +213,26 @@ select
   case when has_table_privilege('authenticated', 'public.' || v.nombre, 'SELECT')
     then '✅ OK' else '❌ Ejecuta 0014_grant_club_summary_views.sql' end as estado
 from (values ('member_points_balance'), ('club_member_summary')) as v(nombre);
+
+-- 16. Cumpleaños de socios (Fase 4, ajuste) -------------------------
+-- club_member_summary ya expone birthday (0015): quiénes cumplen años
+-- ESTE MES, para saber a quién dar el premio de cumpleaños (el canje
+-- en sí es Fase 5 — points_reason ya tiene 'birthday_bonus' reservado
+-- para eso). Se compara solo el mes (no un rango de 30 días) para no
+-- tener que lidiar con el cruce de fin de año en la consulta.
+select
+  user_id, full_name, phone, birthday
+from public.club_member_summary
+where birthday is not null
+  and extract(month from birthday) = extract(month from current_date)
+order by extract(day from birthday);
+
+-- 17. Horarios bloqueados por los barberos (Fase 4, ajuste) ---------
+-- Bloqueos activos (source = 'blocked', sin cancelar): horarios que un
+-- barbero reservó para un cliente presencial y que ya no se ofrecen en
+-- la reserva en línea. Ver api/staff/block-slot.ts.
+select
+  b.id, b.barber_id, b.starts_at, b.ends_at, b.notes
+from public.bookings b
+where b.source = 'blocked' and b.status <> 'cancelled'
+order by b.starts_at;

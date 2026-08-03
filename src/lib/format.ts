@@ -33,6 +33,32 @@ export function formatCop(value: number): string {
   return `$${value.toLocaleString("es-CO")}`;
 }
 
+const MONTHS_ES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+/** Fecha de nacimiento ("YYYY-MM-DD", columna `date` sin hora) — ej.
+ * "3 de agosto de 2000". Se arma a partir de las partes del string en
+ * vez de `new Date(iso)` + timeZone: una fecha sin hora se interpreta
+ * como medianoche UTC, y convertirla a America/Bogota (UTC-5) la
+ * corre un día hacia atrás. */
+export function formatBirthday(dateOnly: string): string {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  if (!year || !month || !day) return dateOnly;
+  return `${day} de ${MONTHS_ES[month - 1]} de ${year}`;
+}
+
 /** Rango de "hoy" en hora de Bogotá (offset fijo -05:00, sin horario de
  * verano — igual que api/_lib/schedule.ts en el servidor). Lo usan el
  * dashboard administrativo y el panel del barbero para acotar la

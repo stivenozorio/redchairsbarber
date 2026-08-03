@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { FaSpinner, FaTimes } from "react-icons/fa";
+import { FaBirthdayCake, FaSpinner, FaTimes } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import type { ClubMemberSummary } from "../../types/club";
 import { useMyBookings } from "../../hooks/useMyBookings";
 import { BOOKING_STATUS_LABEL } from "../../data/bookingStatus";
-import { formatShortDate, formatTime } from "../../lib/format";
+import { formatBirthday, formatShortDate, formatTime } from "../../lib/format";
 
 /**
  * Ficha del cliente, abierta desde una reserva en el panel administrativo
@@ -64,6 +64,11 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
                 <p className="font-display text-xl text-ivory">{summary.full_name || "Sin nombre"}</p>
                 <p className="mt-1 truncate text-sm text-bone/60">{summary.email}</p>
                 <p className="text-sm text-bone/60">{summary.phone || "Sin teléfono"}</p>
+                {summary.birthday && (
+                  <p className="mt-1 flex items-center gap-1.5 text-sm text-gold/70">
+                    <FaBirthdayCake size={11} /> {formatBirthday(summary.birthday)}
+                  </p>
+                )}
               </>
             ) : (
               <p className="text-sm text-blood">{summaryError ?? "No se encontró el cliente."}</p>

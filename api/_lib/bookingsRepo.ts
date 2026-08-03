@@ -25,6 +25,10 @@ export interface CreateBookingInput {
   customerPhone: string;
   notes?: string;
   services: Service[];
+  /** 'web' (default) para reservas de clientes; 'blocked' cuando el
+   * barbero bloquea el horario para un cliente presencial (ver
+   * api/staff/block-slot.ts). */
+  source?: string;
 }
 
 export interface RepoResult {
@@ -74,7 +78,7 @@ export async function createBookingRecord(input: CreateBookingInput): Promise<Re
         customer_name: input.customerName,
         customer_phone: input.customerPhone,
         notes: input.notes?.trim() || null,
-        source: "web",
+        source: input.source ?? "web",
       })
       .select("id")
       .single();

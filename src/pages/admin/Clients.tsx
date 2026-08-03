@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { FaCheck, FaExclamationTriangle, FaPen, FaSpinner } from "react-icons/fa";
+import { FaBirthdayCake, FaCheck, FaExclamationTriangle, FaPen, FaSpinner } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import type { Profile } from "../../types/club";
 import { fieldClass, labelClass } from "../../lib/ui";
-import { formatShortDate } from "../../lib/format";
+import { formatBirthday, formatShortDate } from "../../lib/format";
 
 const RESULT_LIMIT = 200;
+const TODAY = new Date().toISOString().split("T")[0];
 
 function ClientRow({ client, onSaved }: { client: Profile; onSaved: (updated: Profile) => void }) {
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState(client.full_name ?? "");
   const [phone, setPhone] = useState(client.phone ?? "");
+  const [birthday, setBirthday] = useState(client.birthday ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,7 +22,7 @@ function ClientRow({ client, onSaved }: { client: Profile; onSaved: (updated: Pr
     setError(null);
     const { data, error: updateError } = await supabase
       .from("profiles")
-      .update({ full_name: fullName.trim(), phone: phone.trim() || null })
+      .update({ full_name: fullName.trim(), phone: phone.trim() || null, birthday: birthday || null })
       .eq("id", client.id)
       .select("*")
       .single();
@@ -45,6 +47,16 @@ function ClientRow({ client, onSaved }: { client: Profile; onSaved: (updated: Pr
           <div>
             <label className={labelClass}>Teléfono</label>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} className={fieldClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Cumpleaños</label>
+            <input
+              type="date"
+              max={TODAY}
+              value={birthday}
+              onChange={(e) => setBirthday(e.target.value)}
+              className={fieldClass}
+            />
           </div>
         </div>
         {error && (
@@ -73,6 +85,11 @@ function ClientRow({ client, onSaved }: { client: Profile; onSaved: (updated: Pr
           <span>{client.phone || "Sin teléfono"}</span>
           <span>{client.visit_count} visita{client.visit_count === 1 ? "" : "s"}</span>
           <span>Desde {formatShortDate(client.created_at)}</span>
+          {client.birthday && (
+            <span className="flex items-center gap-1.5 text-gold/70">
+              <FaBirthdayCake size={10} /> {formatBirthday(client.birthday)}
+            </span>
+          )}
         </p>
       </div>
       <button
