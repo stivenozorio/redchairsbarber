@@ -246,7 +246,17 @@ export default function Booking() {
     // error visible, la pestaña simplemente nunca aparece. Por eso se abre
     // en blanco aquí mismo, todavía dentro del gesto, y más abajo solo se
     // le asigna la URL una vez que ya tenemos los datos de la reserva.
-    const whatsappTab = window.open("", "_blank", "noopener,noreferrer");
+    //
+    // OJO: no se le puede pasar "noopener" aquí — por especificación,
+    // window.open devuelve null cuando se incluye esa feature, y sin la
+    // referencia no hay forma de navegarla después. En su lugar se anula
+    // whatsappTab.opener manualmente abajo, que logra el mismo efecto de
+    // seguridad (la pestaña de WhatsApp no puede tocar esta ventana) sin
+    // perder la referencia que sí necesitamos conservar.
+    const whatsappTab = window.open("", "_blank");
+    if (whatsappTab) {
+      whatsappTab.opener = null;
+    }
 
     let result: BookResponse;
     try {
