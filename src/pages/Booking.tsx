@@ -135,6 +135,7 @@ export default function Booking() {
   const [submitting, setSubmitting] = useState(false);
   const [successPending, setSuccessPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
 
   // Precio/duración vivos desde el panel administrativo, superpuestos al
   // catálogo estático (que sigue dando nombres, categorías y
@@ -238,6 +239,15 @@ export default function Booking() {
 
     setSubmitting(true);
 
+    // Safari (y otros navegadores móviles) solo permite abrir una pestaña
+    // nueva como reacción DIRECTA e inmediata al gesto del usuario (este
+    // submit). Si window.open se llama después de un await (la llamada a
+    // /api/book) o un setTimeout, lo bloquean en silencio — sin ningún
+    // error visible, la pestaña simplemente nunca aparece. Por eso se abre
+    // en blanco aquí mismo, todavía dentro del gesto, y más abajo solo se
+    // le asigna la URL una vez que ya tenemos los datos de la reserva.
+    const whatsappTab = window.open("", "_blank", "noopener,noreferrer");
+
     let result: BookResponse;
     try {
       // Si hay sesión, el token permite al servidor vincular la reserva
@@ -262,6 +272,7 @@ export default function Booking() {
             setAvailability(toAvailabilityMap(slots));
           });
         }
+        whatsappTab?.close();
         setSubmitting(false);
         return;
       }
@@ -269,6 +280,7 @@ export default function Booking() {
       result = (await res.json()) as BookResponse;
     } catch {
       setFormError("No fue posible crear tu reserva. Verifica tu conexión e intenta de nuevo.");
+      whatsappTab?.close();
       setSubmitting(false);
       return;
     }
@@ -308,7 +320,15 @@ export default function Booking() {
         notes.trim() ? `Observaciones: ${notes.trim()}` : null,
       ].filter((line): line is string => Boolean(line));
       const url = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(lines.join("\n"))}`;
-      window.open(url, "_blank", "noopener,noreferrer");
+      // Si el navegador bloqueó igual la pestaña en blanco (whatsappTab
+      // null o cerrada), se intenta una vez más directo — y de cualquier
+      // forma queda el enlace visible de abajo como respaldo manual.
+      if (whatsappTab && !whatsappTab.closed) {
+        whatsappTab.location.href = url;
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+      setWhatsappUrl(url);
       setSuccessPending(false);
       setSent(true);
     }, 2000);
@@ -669,9 +689,21 @@ export default function Booking() {
                 )}
 
                 {sent && !successPending && (
-                  <p className="flex items-center gap-2 text-sm text-gold">
-                    <FaCheckCircle /> Te redirigimos a WhatsApp para confirmar tu cita.
-                  </p>
+                  <div className="space-y-3">
+                    <p className="flex items-center gap-2 text-sm text-gold">
+                      <FaCheckCircle /> Te redirigimos a WhatsApp para confirmar tu cita.
+                    </p>
+                    {whatsappUrl && (
+                      <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-outline flex w-full items-center justify-center gap-2"
+                      >
+                        ¿No se abrió? Toca aquí para ir a WhatsApp
+                      </a>
+                    )}
+                  </div>
                 )}
 
                 <p className="text-center text-xs text-bone/40">
