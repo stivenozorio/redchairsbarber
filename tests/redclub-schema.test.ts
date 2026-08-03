@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 function readMigration(file: string): string {
@@ -23,6 +23,7 @@ const adminRls = readMigration("0010_admin_rls.sql");
 const bookingConfirmation = readMigration("0011_booking_confirmation.sql");
 const calendarSyncErrors = readMigration("0012_calendar_sync_errors.sql");
 const awardPoints = readMigration("0013_award_points_on_completion.sql");
+const grantSummaryViews = readMigration("0014_grant_club_summary_views.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -422,4 +423,55 @@ test("0013 no borra nada y refresca el cache de PostgREST", () => {
     "no debe borrar datos existentes"
   );
   assert.ok(awardPoints.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (ajuste): 0014 permiso faltante sobre las vistas de socio ---
+
+test("0014 concede select a authenticated sobre las vistas de socio", () => {
+  assert.match(
+    grantSummaryViews,
+    /grant select on public\.member_points_balance, public\.club_member_summary\s*\nto authenticated/
+  );
+});
+
+test("0014 no borra nada y refresca el cache de PostgREST", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b/i.test(grantSummaryViews),
+    "no debe borrar datos existentes"
+  );
+  assert.ok(grantSummaryViews.includes("notify pgrst, 'reload schema'"));
+});
+
+// Prueba de regresión: este mismo bug (RLS ok, pero sin GRANT sobre la
+// vista → "permission denied for view X" en el navegador) ya pasó una
+// vez con las tablas base (arreglado en 0007) y volvió a pasar con las
+// vistas (arreglado en 0014, silenciosamente, porque DigitalCard se
+// degrada sin mostrar el error). Si en el futuro se agrega una vista
+// nueva y se olvida el GRANT, esta prueba debe fallar en vez de
+// descubrirse en producción.
+test("toda vista declarada tiene GRANT SELECT explícito para 'authenticated'", () => {
+  const migrationsDir = fileURLToPath(new URL("../supabase/migrations/", import.meta.url));
+  const allMigrationsSql = readdirSync(migrationsDir)
+    .filter((f) => f.endsWith(".sql"))
+    .map((f) => readFileSync(`${migrationsDir}${f}`, "utf8"))
+    .join("\n");
+
+  const sqlOnly = functions
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n");
+  const viewNames = [...sqlOnly.matchAll(/create or replace view\s+public\.(\w+)/g)].map(
+    (m) => m[1]
+  );
+
+  assert.ok(viewNames.length > 0, "debe haber al menos una vista para probar esto");
+  for (const view of viewNames) {
+    const granted = new RegExp(`grant select[^;]*\\bpublic\\.${view}\\b[^;]*to[^;]*authenticated`).test(
+      allMigrationsSql
+    );
+    assert.ok(
+      granted,
+      `Falta GRANT SELECT a authenticated sobre la vista ${view} (causa "permission denied for view" en el navegador)`
+    );
+  }
 });

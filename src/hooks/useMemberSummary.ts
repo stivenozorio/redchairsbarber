@@ -34,6 +34,7 @@ export function useMemberSummary(userId: string | undefined): UseMemberSummaryRe
       .maybeSingle();
 
     if (fetchError) {
+      console.error("Error cargando el resumen de socio:", fetchError);
       setError(fetchError.message);
       setSummary(null);
     } else {

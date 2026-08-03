@@ -204,3 +204,12 @@ where b.status = 'completed'
 select user_id, full_name, visit_count, points_balance, tier_id, tier_name
 from public.club_member_summary
 order by points_balance desc;
+
+-- Permiso de tabla sobre las vistas de socio para 'authenticated' ------
+-- Sin esto, el navegador recibe "permission denied for view X" al
+-- consultarla y la tarjeta digital de Mi Cuenta no muestra nada.
+select
+  v.nombre as vista,
+  case when has_table_privilege('authenticated', 'public.' || v.nombre, 'SELECT')
+    then '✅ OK' else '❌ Ejecuta 0014_grant_club_summary_views.sql' end as estado
+from (values ('member_points_balance'), ('club_member_summary')) as v(nombre);

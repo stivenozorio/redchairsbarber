@@ -242,6 +242,16 @@ Reglas explícitas:
   `points_per_visit` dentro de `award_points_on_completion()` (migración
   0013) y volver a ejecutar el archivo — es idempotente.
 
+**Si el trigger corrió (`visit_count`/`points_transactions` ya están
+correctos en la base) pero la tarjeta digital no aparece en "Mi
+cuenta"**, casi seguro falta `0014_grant_club_summary_views.sql`: RLS
+con `security_invoker = true` respeta las políticas de las tablas de
+abajo, pero la vista en sí necesita su propio `GRANT SELECT` — sin él,
+el navegador recibe `permission denied for view club_member_summary` y
+`DigitalCard` se degrada en silencio (no muestra ningún error).
+`supabase/verify.sql` lo confirma en la sección de permisos de las
+vistas de socio.
+
 **Tarjeta digital** — `src/components/club/DigitalCard.tsx`, visible en
 "Mi cuenta" arriba de los datos del socio. Muestra nombre, nivel,
 puntos y cuántas visitas faltan para el siguiente nivel
@@ -428,6 +438,13 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     Google Calendar.
 13. `0013_award_points_on_completion.sql` — trigger que otorga puntos y
     suma la visita cuando una cita con cuenta pasa a "Completada".
+14. `0014_grant_club_summary_views.sql` — corrige un permiso: las vistas
+    `member_points_balance`/`club_member_summary` nunca tuvieron un
+    `GRANT SELECT` explícito para `authenticated` (mismo bug que 0007,
+    pero en una vista en vez de una tabla). Sin este archivo, el
+    trigger de la Fase 4 otorga los puntos correctamente en la base,
+    pero la tarjeta digital de "Mi cuenta" no muestra nada porque el
+    navegador recibe `permission denied for view club_member_summary`.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede
