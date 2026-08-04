@@ -172,6 +172,43 @@ export async function discardBooking(bookingId: string): Promise<void> {
   }
 }
 
+export interface BookingOwnership {
+  id: string;
+  userId: string | null;
+  status: string;
+}
+
+/** Estados en los que una cita ya no se puede cancelar ni reprogramar
+ * por su cuenta: ya pasó, ya la están atendiendo, o ya se resolvió de
+ * alguna forma. Usado por /api/cancel y /api/reschedule. */
+export const LOCKED_BOOKING_STATUSES = ["completed", "cancelled", "no_show", "in_progress"];
+
+/** Busca la reserva por su evento de Calendar, para que /api/cancel y
+ * /api/reschedule puedan verificar quién es el dueño antes de tocar
+ * nada — sin esto, cualquiera que conociera un eventId (visible en el
+ * navegador de quien reservó) podría cancelar o mover la cita de otra
+ * cuenta. Si Supabase no está configurado, o el evento no tiene fila
+ * asociada (base sin migrar), devuelve null: el llamador entonces no
+ * puede verificar nada y se comporta como antes de esta validación. */
+export async function getBookingByEventId(googleEventId: string): Promise<BookingOwnership | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("id, user_id, status")
+      .eq("google_event_id", googleEventId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return { id: data.id as string, userId: data.user_id as string | null, status: data.status as string };
+  } catch (error) {
+    console.error("Error inesperado buscando la reserva por evento de Calendar:", error);
+    return null;
+  }
+}
+
 export async function cancelBookingByEventId(googleEventId: string): Promise<void> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;

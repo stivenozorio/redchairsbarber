@@ -455,6 +455,71 @@ horario que en realidad está libre.
 Reservar sin cuenta sigue permitido: `bookings.user_id` es nulo para
 invitados.
 
+### Reagendar y cancelar desde "Mi cuenta" (Fase 4, ajuste)
+
+Antes, reagendar/cancelar solo existía justo después de reservar en
+`/reservar` (recordado en el navegador vía `localStorage`, sin sesión).
+Ahora `BookingCard.tsx` — la misma tarjeta que muestra "Próxima
+reserva" y "Otras citas programadas" en "Mi cuenta" — también tiene
+esos botones, para cualquier cita en estado **Pendiente** o
+**Confirmada** (no tiene sentido ofrecerlos para una cita ya
+completada, cancelada, sin asistencia, o que el barbero ya marcó "en
+proceso"). Usan los mismos `POST /api/cancel` / `POST /api/reschedule`
+de siempre.
+
+**Ajuste de seguridad que vino con esto:** ninguno de los dos
+endpoints verificaba antes quién hacía la petición — solo pedían el
+`eventId` de Google Calendar, así que en teoría cualquiera que lo
+conociera podía cancelar o mover la cita de otra cuenta. Ahora, antes
+de tocar Calendar, se busca la reserva en Supabase por su
+`google_event_id` (`getBookingByEventId` en `bookingsRepo.ts`) y:
+
+- Si la cita **tiene cuenta** (`user_id` no nulo), se exige un token de
+  sesión que coincida con ese `user_id` — si no, `403`.
+- Si la cita **es de invitado** (`user_id` nulo), sigue sin pedir
+  sesión, exactamente como antes.
+- Si el estado ya es `completed`/`cancelled`/`no_show`/`in_progress`
+  (`LOCKED_BOOKING_STATUSES` en `bookingsRepo.ts`), se rechaza con
+  `409` sin importar quién pregunte.
+- Si Supabase no está configurado, o la cita no tiene fila asociada
+  (base sin migrar), no hay nada que verificar y se comporta igual que
+  antes de este ajuste — la reserva sigue funcionando solo contra
+  Calendar.
+
+Esto también significaba que `/reservar` debía empezar a mandar el
+token de sesión en sus propias llamadas a cancelar/reprogramar (antes
+no lo hacía nunca, porque ese flujo nació pensado solo para invitados):
+sin ese cambio, un cliente con sesión activa que reserva desde
+`/reservar` se hubiera quedado sin poder cancelar su propia cita recién
+creada.
+
+### ¿Se puede cancelar desde Google Calendar y que se refleje en el sitio?
+
+**Hoy no, y es intencional por ahora:** la sincronización es de un solo
+sentido — el sitio escribe en Calendar (crear/cancelar/reprogramar),
+pero nada escucha cambios hechos directamente en Calendar. Si alguien
+borra un evento a mano desde la app de Google Calendar, esa cita queda
+"viva" en Supabase (sigue en estado `confirmed`) y seguiría contando
+el horario como ocupado.
+
+Es técnicamente posible agregarlo, con dos enfoques y una decisión de
+producto real detrás:
+
+- **Google Calendar Push Notifications (tiempo real):** Google llama a
+  un webhook propio cada vez que algo cambia en el calendario. Más
+  inmediato, pero el canal de notificación expira cada ~7 días y hay
+  que renovarlo con un cron, además de un endpoint público nuevo que
+  valide que la notificación viene de verdad de Google.
+- **Sondeo periódico (más simple):** una tarea programada (cron de
+  Vercel) que cada tanto compara los eventos del calendario contra las
+  reservas `confirmed` en Supabase y cancela en la base las que ya no
+  existan en Calendar. Menos inmediato (depende de cada cuánto corra),
+  pero mucho más simple de mantener.
+
+No está construido todavía porque implica infraestructura nueva
+(webhook o cron) que vale la pena decidir a propósito, no como efecto
+secundario de otro cambio.
+
 ### Instalación / actualización de la base
 
 En Supabase → **SQL Editor**, ejecutar en orden los archivos de

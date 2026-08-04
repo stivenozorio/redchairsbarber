@@ -9,7 +9,12 @@ import {
 import { getEffectiveHours } from "./_lib/scheduleRepo.js";
 import { listBusyIntervals, isRangeFree } from "./_lib/availability.js";
 import { sendApiError } from "./_lib/http.js";
-import { rescheduleBookingByEventId } from "./_lib/bookingsRepo.js";
+import { getUserIdFromRequest } from "./_lib/auth.js";
+import {
+  getBookingByEventId,
+  LOCKED_BOOKING_STATUSES,
+  rescheduleBookingByEventId,
+} from "./_lib/bookingsRepo.js";
 
 interface RescheduleRequestBody {
   eventId?: string;
@@ -34,6 +39,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (!date || !time) {
       throw new InvalidScheduleInputError("Los campos 'date' y 'time' son requeridos.");
+    }
+
+    // Mismo criterio que /api/cancel: si la reserva tiene cuenta, solo
+    // su dueño puede reprogramarla.
+    const owner = await getBookingByEventId(eventId);
+    if (owner) {
+      if (LOCKED_BOOKING_STATUSES.includes(owner.status)) {
+        res.status(409).json({ error: "Esta reserva ya no se puede reprogramar." });
+        return;
+      }
+      if (owner.userId) {
+        const requesterId = await getUserIdFromRequest(req);
+        if (requesterId !== owner.userId) {
+          res.status(403).json({ error: "No tienes permiso para reprogramar esta reserva." });
+          return;
+        }
+      }
     }
 
     const calendar = getCalendarClient();

@@ -60,7 +60,7 @@ export default function Account() {
                         </button>
                       </div>
                     ) : nextBooking ? (
-                      <BookingCard booking={nextBooking} highlight />
+                      <BookingCard booking={nextBooking} highlight onUpdated={() => void reload()} />
                     ) : (
                       <div className="card-lux text-center">
                         <p className="text-sm text-bone/70">No tienes citas programadas.</p>
@@ -79,7 +79,7 @@ export default function Account() {
                     <p className="eyebrow justify-start before:hidden">Otras citas programadas</p>
                     <div className="mt-6 space-y-4">
                       {upcoming.slice(1).map((booking) => (
-                        <BookingCard key={booking.id} booking={booking} />
+                        <BookingCard key={booking.id} booking={booking} onUpdated={() => void reload()} />
                       ))}
                     </div>
                   </div>

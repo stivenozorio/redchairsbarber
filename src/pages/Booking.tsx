@@ -351,9 +351,11 @@ export default function Booking() {
     setCancelling(true);
     setActionError(null);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
       const res = await fetch("/api/cancel", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ eventId: myBooking.id, barberId: myBooking.barberId }),
       });
       if (!res.ok) {
@@ -389,9 +391,11 @@ export default function Booking() {
     setRescheduleSubmitting(true);
     setRescheduleError(null);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
       const res = await fetch("/api/reschedule", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           eventId: myBooking.id,
           barberId: myBooking.barberId,
