@@ -94,6 +94,17 @@ test("las horas candidatas cubren la jornada publicada hoy (10am-8pm)", () => {
   assert.equal(new Set(TIME_SLOTS).size, TIME_SLOTS.length, "no debe haber horas repetidas");
 });
 
+test("las horas candidatas están cada 30 minutos, no cada hora", () => {
+  // Varios servicios duran menos de una hora (p. ej. un corte de barba
+  // de 20-30 min). Si solo se ofrecieran horas en punto, el cupo que
+  // deja libre una cita corta nunca se podría volver a reservar — se
+  // perdería media hora de agenda por cada cita corta.
+  assert.ok(TIME_SLOTS.includes("7:30 pm"), "debe ofrecer horas a la media hora");
+  assert.ok(TIME_SLOTS.includes("12:30 pm"), "el cruce del mediodía debe seguir en formato 12 horas");
+  assert.equal(TIME_SLOTS[0], "7:00 am");
+  assert.equal(TIME_SLOTS[TIME_SLOTS.length - 1], "10:00 pm");
+});
+
 test("applyLiveOverrides superpone nombre/precio/duración sin tocar el id", () => {
   const target = ALL_BOOKABLE_SERVICES[0];
   const overridden = applyLiveOverrides(ALL_BOOKABLE_SERVICES, {

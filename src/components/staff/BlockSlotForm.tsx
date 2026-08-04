@@ -30,7 +30,7 @@ export default function BlockSlotForm({
   onBlocked: () => void;
 }) {
   const { blockSlot, blocking } = useBlockSlot();
-  const [time, setTime] = useState(TIME_SLOTS[3]);
+  const [time, setTime] = useState(TIME_SLOTS.includes("10:00 am") ? "10:00 am" : TIME_SLOTS[0]);
   const [durationMinutes, setDurationMinutes] = useState(30);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);

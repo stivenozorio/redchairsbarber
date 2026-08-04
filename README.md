@@ -138,6 +138,16 @@ ajústalos a tus tiempos reales) y se usan tanto en el cliente (total en
 vivo) como en el servidor (fuente de verdad para disponibilidad y el
 evento creado).
 
+**`TIME_SLOTS` (`src/data/booking.ts`) ofrece horas cada 30 minutos, no
+cada hora.** Antes solo eran horas en punto: si un servicio duraba 30
+minutos (p. ej. un corte de barba), el cupo que dejaba libre nunca se
+podía volver a reservar porque la media hora ni siquiera existía como
+opción — la siguiente hora disponible saltaba directo a la próxima en
+punto, perdiendo 30 minutos reales de agenda por cada cita corta. Es un
+único array generado (`generateTimeSlots`), así que el mismo cambio de
+granularidad aplica a la vez en `/reservar`, el reagendado desde "Mi
+cuenta", el bloqueo de horarios del barbero, y `/api/availability`.
+
 Si falta alguna de las 5 variables de entorno, cualquier endpoint
 responde `500` con `{ "error": "...", "missingEnvVars": ["..."] }` —
 el nombre exacto de la(s) variable(s) que falta(n), no solo un mensaje
