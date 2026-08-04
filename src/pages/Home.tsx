@@ -4,7 +4,10 @@ import {
   FaCut,
   FaGem,
   FaHandSparkles,
+  FaSignInAlt,
   FaSprayCan,
+  FaUserCircle,
+  FaUserPlus,
   FaUserTie,
 } from "react-icons/fa";
 import Reveal from "../components/Reveal";
@@ -19,6 +22,8 @@ import { LOYALTY_TIERS } from "../data/loyalty";
 import { TESTIMONIALS } from "../data/testimonials";
 import { GALLERY_ITEMS } from "../data/gallery";
 import { TAGLINE_SECONDARY } from "../data/site";
+import { isSupabaseConfigured } from "../lib/supabase";
+import { useAuth } from "../auth/useAuth";
 
 const WHY_US = [
   { icon: FaCut, title: "Cortes Modernos", text: "Tendencias, clásicos y personalizados a tu estilo." },
@@ -30,6 +35,7 @@ const WHY_US = [
 
 export default function Home() {
   const premiumPreview = SERVICE_CATEGORIES.find((c) => c.id === "premium")!.services;
+  const { isAuthenticated } = useAuth();
 
   return (
     <div>
@@ -97,6 +103,39 @@ export default function Home() {
               Ver servicios
             </Link>
           </motion.div>
+
+          {isSupabaseConfigured && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1, duration: 0.9 }}
+              className="mt-6 flex flex-col gap-3 sm:flex-row"
+            >
+              {isAuthenticated ? (
+                <Link
+                  to="/club"
+                  className="btn-outline !py-3 !px-6 text-[11px]"
+                >
+                  <FaUserCircle size={14} className="mr-2 inline" /> Mi cuenta
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/club/entrar"
+                    className="btn-outline !py-3 !px-6 text-[11px]"
+                  >
+                    <FaSignInAlt size={13} className="mr-2 inline" /> Iniciar sesión
+                  </Link>
+                  <Link
+                    to="/club/registro"
+                    className="btn-outline !py-3 !px-6 text-[11px]"
+                  >
+                    <FaUserPlus size={13} className="mr-2 inline" /> Registrarme
+                  </Link>
+                </>
+              )}
+            </motion.div>
+          )}
 
           <motion.div
             initial={{ opacity: 0 }}
