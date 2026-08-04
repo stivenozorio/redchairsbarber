@@ -3,8 +3,17 @@ import { FaBirthdayCake, FaSpinner, FaTimes } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import type { ClubMemberSummary } from "../../types/club";
 import { useMyBookings } from "../../hooks/useMyBookings";
+import { useAuth } from "../../auth/useAuth";
 import { BOOKING_STATUS_LABEL } from "../../data/bookingStatus";
 import { formatBirthday, formatShortDate, formatTime } from "../../lib/format";
+
+// Tipado explícito a `string` (no el tipo literal que infiere `const`):
+// supabase-js intenta parsear un `select()` literal para tipar la
+// respuesta con precisión, y ese análisis no soporta esta lista de
+// columnas — con `string` simplemente usa un tipo genérico, que es lo
+// que ya se hace un cast manual más abajo.
+const SUMMARY_COLUMNS: string =
+  "user_id, full_name, email, birthday, visit_count, referral_code, points_balance, tier_id, tier_name, tier_min_visits, tier_max_visits";
 
 /**
  * Ficha del cliente, abierta desde una reserva en el panel administrativo
@@ -13,6 +22,7 @@ import { formatBirthday, formatShortDate, formatTime } from "../../lib/format";
  * vez de duplicar la lógica de consulta de reservas.
  */
 export default function ClientProfileModal({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const { isAdmin } = useAuth();
   const [summary, setSummary] = useState<ClubMemberSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -25,21 +35,23 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
       return;
     }
     setLoadingSummary(true);
+    // Un barbero no debe poder ver el teléfono del cliente (solo un
+    // admin) — ni siquiera se pide la columna cuando no corresponde.
     supabase
       .from("club_member_summary")
-      .select("*")
+      .select(isAdmin ? "*" : SUMMARY_COLUMNS)
       .eq("user_id", userId)
       .maybeSingle()
       .then(({ data, error }) => {
         if (!active) return;
         if (error) setSummaryError(error.message);
-        setSummary((data as ClubMemberSummary) ?? null);
+        setSummary((data as unknown as ClubMemberSummary) ?? null);
         setLoadingSummary(false);
       });
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [userId, isAdmin]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -63,7 +75,7 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
               <>
                 <p className="font-display text-xl text-ivory">{summary.full_name || "Sin nombre"}</p>
                 <p className="mt-1 truncate text-sm text-bone/60">{summary.email}</p>
-                <p className="text-sm text-bone/60">{summary.phone || "Sin teléfono"}</p>
+                {isAdmin && <p className="text-sm text-bone/60">{summary.phone || "Sin teléfono"}</p>}
                 {summary.birthday && (
                   <p className="mt-1 flex items-center gap-1.5 text-sm text-gold/70">
                     <FaBirthdayCake size={11} /> {formatBirthday(summary.birthday)}

@@ -395,11 +395,14 @@ update public.barbers set user_id = (
 `supabase/verify.sql` (sección 13) muestra qué barberos ya tienen
 cuenta vinculada y con el rol correcto.
 
-El panel muestra, por reserva: nombre y teléfono del cliente, servicios
+El panel muestra, por reserva: nombre del cliente, servicios
 reservados, barbero, hora, duración y estado — con un botón **"Marcar
 como completada"** además del selector con los 6 estados. Desde
 cualquier reserva con cuenta se puede abrir la **ficha del cliente**
-(nombre, correo, teléfono, nivel actual, próximas reservas e historial).
+(nombre, correo, nivel actual, próximas reservas e historial). El
+teléfono **no se muestra en este panel** — ver
+["Privacidad del teléfono frente al barbero"](#privacidad-del-teléfono-frente-al-barbero-fase-4-ajuste)
+más abajo.
 
 **Cómo se sincroniza cada estado con Google Calendar** (Supabase sigue
 siendo la fuente oficial de datos; Calendar es la agenda que usan los
@@ -423,6 +426,56 @@ cancelaciones pendientes de corregir a mano; un futuro panel
 administrativo podrá leer esa misma tabla para mostrarlas y
 resolverlas sin depender del SQL Editor.
 
+### Privacidad del teléfono frente al barbero (Fase 4, ajuste)
+
+Un barbero (que puede ser temporal) ya no ve el número de teléfono del
+cliente en ningún panel — solo su nombre, el corte a realizar y la
+fecha/hora. Un **administrador sigue viendo el teléfono normalmente**
+en todos lados (panel, ficha del cliente, `/admin/clientes`).
+
+Cómo funciona:
+
+- `useStaffBookings.ts` (la agenda de `/barbero` y `/admin`) solo pide
+  la columna `customer_phone` a Supabase cuando quien pregunta es
+  admin (`isAdmin` de `useAuth()`); para un barbero, ni siquiera viaja
+  al navegador.
+- `ClientProfileModal.tsx` ("Ver cliente") hace lo mismo con
+  `club_member_summary.phone`: la consulta explícita de columnas omite
+  `phone` para un barbero.
+- `BookingStatusRow.tsx`/`ClientProfileModal.tsx` además ocultan el
+  valor en pantalla con `{isAdmin && ...}`, por si en algún momento la
+  columna sí llegara al navegador.
+- Buscar por teléfono en la agenda (`Buscar cliente`) sigue funcionando
+  para un barbero — el filtro compara contra la columna en el servidor
+  (PostgREST), no requiere haberla pedido de vuelta, así que nunca
+  expone el valor.
+
+**Límite honesto de esta protección:** es de aplicación (la interfaz no
+lo pide ni lo muestra), no de base de datos. La política de RLS
+`bookings_select_own`/`profiles_select_own` sigue permitiendo a
+cualquier `is_staff()` (barbero o admin) leer la fila completa,
+incluida `customer_phone`/`phone` — así que alguien con las
+herramientas de desarrollador del navegador y conocimiento técnico
+podría igual pedirle esa columna a Supabase directamente con su propia
+sesión. Cerrar eso del todo requeriría una vista con
+`security definer` que enmascare la columna a nivel de base de datos
+(distinto del patrón `security_invoker = true` que usa el resto del
+proyecto) — es una pieza más grande y con más riesgo de hacerla mal, así
+que no se construyó todavía; se puede hacer si hace falta ese nivel de
+garantía.
+
+### Cambiar contraseña desde "Mi cuenta" (Fase 4, ajuste)
+
+`ChangePasswordForm.tsx`, debajo de "Cerrar sesión" en el perfil.
+`updatePassword()` ya existía en `AuthProvider` (lo usaba
+`/club/restablecer` tras un enlace de recuperación); esto solo le
+agrega una entrada dentro de la sesión normal, sin pasar por el correo.
+
+Solo aparece para cuentas que se registraron con **correo y
+contraseña** (`user.app_metadata.provider === "email"`) — quien entra
+con Google no tiene una contraseña propia en el sitio, así que el
+botón no se muestra para esas cuentas.
+
 ### Seguridad
 
 - El navegador usa la **anon key**; lo que protege los datos es **Row
@@ -434,6 +487,9 @@ resolverlas sin depender del SQL Editor.
   cualquiera podría asignarse LEGEND desde la consola del navegador.
 - Las vistas declaran `security_invoker = true` para que respeten el RLS
   de quien consulta.
+- **El teléfono del cliente oculto para un barbero es una protección de
+  aplicación, no de RLS** — ver
+  ["Privacidad del teléfono frente al barbero"](#privacidad-del-teléfono-frente-al-barbero-fase-4-ajuste).
 
 ### Flujo de una reserva
 

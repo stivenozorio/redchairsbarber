@@ -48,7 +48,10 @@ export interface BookingRow {
   total_price_cop: number;
   total_duration_minutes: number;
   customer_name: string;
-  customer_phone: string;
+  /** Ausente cuando la consulta lo excluyó a propósito — el panel del
+   * barbero no lo pide (ver useStaffBookings.ts): un barbero no debe
+   * poder ver el teléfono del cliente, solo un administrador. */
+  customer_phone?: string;
   notes: string | null;
   google_event_id: string | null;
   created_at: string;

@@ -5,6 +5,7 @@ import { BOOKING_STATUS_CLASS, BOOKING_STATUS_LABEL, BOOKING_STATUS_ORDER } from
 import { BARBERS } from "../../data/booking";
 import { formatCop, formatShortDate, formatTime } from "../../lib/format";
 import { useUpdateBookingStatus } from "../../hooks/useUpdateBookingStatus";
+import { useAuth } from "../../auth/useAuth";
 
 function barberName(barberId: string): string {
   return BARBERS.find((b) => b.id === barberId)?.name ?? barberId;
@@ -81,6 +82,7 @@ export default function BookingStatusRow({
   onOpenClient?: (userId: string) => void;
 }) {
   const { updateStatus, updatingId } = useUpdateBookingStatus();
+  const { isAdmin } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const saving = updatingId === booking.id;
@@ -117,7 +119,11 @@ export default function BookingStatusRow({
             </button>
           )}
         </div>
-        <p className="mt-1 text-sm text-bone/60">{booking.customer_phone}</p>
+        {/* Un barbero temporal no debe poder ver/copiar el teléfono del
+         * cliente — solo el administrador. Ver README ("Privacidad del
+         * teléfono frente al panel del barbero") para el alcance real
+         * de esta restricción. */}
+        {isAdmin && <p className="mt-1 text-sm text-bone/60">{booking.customer_phone}</p>}
 
         {services.length > 0 && (
           <p className="mt-2 text-sm text-bone/70">{services.map((s) => s.name_snapshot).join(" + ")}</p>

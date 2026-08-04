@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { supabase } from "../lib/supabase";
 import type { BookingRow, BookingServiceRow } from "../types/club";
+import { useAuth } from "../auth/useAuth";
+
+const STAFF_COLUMNS =
+  "id, user_id, barber_id, status, starts_at, ends_at, total_price_cop, total_duration_minutes, customer_name, notes, google_event_id, created_at, source";
 
 /**
  * Reservas para el panel administrativo y el panel del barbero — mismo
@@ -38,6 +42,7 @@ interface UseStaffBookingsResult {
 
 export function useStaffBookings(filters: StaffBookingsFilters): UseStaffBookingsResult {
   const { barberId, dateFrom, dateTo, search, limit = 200, ascending = false } = filters;
+  const { isAdmin } = useAuth();
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,11 +55,11 @@ export function useStaffBookings(filters: StaffBookingsFilters): UseStaffBooking
     setLoading(true);
     setError(null);
 
+    // customer_phone solo se pide para un admin: un barbero (posiblemente
+    // temporal) no debe poder ver ni copiar el teléfono del cliente.
     let query = supabase
       .from("bookings")
-      .select(
-        "id, user_id, barber_id, status, starts_at, ends_at, total_price_cop, total_duration_minutes, customer_name, customer_phone, notes, google_event_id, created_at, source"
-      )
+      .select(isAdmin ? `${STAFF_COLUMNS}, customer_phone` : STAFF_COLUMNS)
       .order("starts_at", { ascending })
       .limit(limit);
 
@@ -109,7 +114,7 @@ export function useStaffBookings(filters: StaffBookingsFilters): UseStaffBooking
       }))
     );
     setLoading(false);
-  }, [barberId, dateFrom, dateTo, search, limit, ascending]);
+  }, [barberId, dateFrom, dateTo, search, limit, ascending, isAdmin]);
 
   useEffect(() => {
     void load();

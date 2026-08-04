@@ -14,6 +14,7 @@ import {
 import { useAuth } from "../../auth/useAuth";
 import { fieldClass, labelClass } from "../../lib/ui";
 import { formatBirthday } from "../../lib/format";
+import ChangePasswordForm from "./ChangePasswordForm";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -249,6 +250,8 @@ export default function ProfileCard() {
               <FaSignOutAlt size={12} /> Cerrar sesión
             </button>
           </div>
+
+          <ChangePasswordForm />
         </>
       )}
     </div>
