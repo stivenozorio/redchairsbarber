@@ -23,7 +23,7 @@ function generateTimeSlots(startHour: number, endHour: number, stepMinutes: numb
 }
 
 // Universo de horas candidatas que ofrece el selector. El horario real
-// (por ahora fijo 10am–8pm; desde el panel administrativo, dinámico por
+// (por ahora fijo 10am–9pm; desde el panel administrativo, dinámico por
 // barbero y día) lo decide el servidor — /api/availability marca como no
 // disponibles las horas fuera de turno. Se deja un rango amplio (7am–10pm)
 // para que el panel pueda mover la apertura/cierre sin tener que tocar

@@ -236,3 +236,11 @@ select
 from public.bookings b
 where b.source = 'blocked' and b.status <> 'cancelled'
 order by b.starts_at;
+
+-- 18. Horario de cierre (Fase 4, ajuste) -----------------------------
+-- Debe estar vacío tras ejecutar 0016_extend_closing_hour.sql: ningún
+-- día abierto debería seguir cerrando a las 20:00.
+select
+  barber_id, day_of_week, open_time, close_time
+from public.barber_schedules
+where is_open = true and close_time = time '20:00';

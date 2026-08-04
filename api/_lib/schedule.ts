@@ -47,9 +47,9 @@ function totalMinutesToISO(dateStr: string, totalMinutes: number): string {
 // todavía no tiene horarios cargados (ver api/_lib/scheduleRepo.ts), para
 // que las reservas nunca se rompan mientras se completa la migración.
 // Debe coincidir con el horario publicado en src/data/site.ts (HOURS):
-// "Lunes a sábado, 10:00 a. m. – 8:00 p. m."
+// "Lunes a sábado, 10:00 a. m. – 9:00 p. m."
 export const FALLBACK_OPEN_MINUTES = 10 * 60;
-export const FALLBACK_CLOSE_MINUTES = 20 * 60;
+export const FALLBACK_CLOSE_MINUTES = 21 * 60;
 
 export interface HoursRange {
   openMinutes: number;

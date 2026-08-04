@@ -25,6 +25,7 @@ const calendarSyncErrors = readMigration("0012_calendar_sync_errors.sql");
 const awardPoints = readMigration("0013_award_points_on_completion.sql");
 const grantSummaryViews = readMigration("0014_grant_club_summary_views.sql");
 const summaryBirthday = readMigration("0015_club_summary_birthday.sql");
+const extendClosingHour = readMigration("0016_extend_closing_hour.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -495,4 +496,28 @@ test("0015 no borra nada y refresca el cache de PostgREST", () => {
     "no debe borrar datos existentes"
   );
   assert.ok(summaryBirthday.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (ajuste): 0016 extiende el cierre a las 9:00 p.m. ---
+
+test("0016 solo mueve el cierre de quien hoy cierra exactamente a las 20:00", () => {
+  assert.match(extendClosingHour, /set close_time = time '21:00'/);
+  assert.match(extendClosingHour, /where is_open = true and close_time = time '20:00'/);
+});
+
+test("0016 actualiza el horario por defecto de un barbero nuevo", () => {
+  assert.match(extendClosingHour, /create or replace function public\.seed_default_barber_schedule/);
+  assert.match(extendClosingHour, /case when d <> 0 then time '21:00' end/);
+  assert.ok(
+    !extendClosingHour.includes("time '20:00' end"),
+    "el horario por defecto para un barbero nuevo no debe seguir cerrando a las 20:00"
+  );
+});
+
+test("0016 no borra nada y refresca el cache de PostgREST", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b/i.test(extendClosingHour),
+    "no debe borrar datos existentes"
+  );
+  assert.ok(extendClosingHour.includes("notify pgrst, 'reload schema'"));
 });

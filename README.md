@@ -355,7 +355,20 @@ Incluye:
 - **Horarios** — horario semanal por barbero y excepciones puntuales
   (festivos, horario especial de un día). Lo consulta directamente
   `/api/availability` y `/api/book`: cambiarlo aquí cambia qué horas se
-  pueden reservar de verdad.
+  pueden reservar de verdad. Este es el lugar correcto para ajustar el
+  horario de un barbero puntual sin tocar código — la migración 0016
+  solo existía porque hacía falta corregir el dato ya sembrado y el
+  horario por defecto de un barbero nuevo, ambos a la vez.
+
+**Horario publicado hoy: 10:00 a.m. – 9:00 p.m., último cliente a las
+8:30 p.m. (Fase 4, ajuste).** Antes cerraba a las 8:00 p.m., pero con
+el cierre en `20:00` una cita que empezara justo ahí en realidad
+**nunca cabía** — `fitsWithinHours` exige que `inicio + duración`
+termine antes del cierre, así que ni las 8:00 ni las 8:30 quedaban
+disponibles de verdad aunque el selector las mostrara (ver también la
+Fase 4 de horas cada 30 minutos, arriba). `0016_extend_closing_hour.sql`
+mueve el cierre a `21:00` tanto en los horarios ya sembrados como en el
+horario por defecto de un barbero nuevo.
 - **Barberos** — nombre, orden y activo/inactivo (un barbero inactivo
   deja de recibir reservas nuevas sin perder su historial). Agregar un
   barbero *nuevo de verdad* no se puede hacer solo desde aquí: necesita
@@ -636,6 +649,9 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     navegador recibe `permission denied for view club_member_summary`.
 15. `0015_club_summary_birthday.sql` — agrega `birthday` a
     `club_member_summary` para poder mostrarlo en la ficha del cliente.
+16. `0016_extend_closing_hour.sql` — mueve el cierre de 8:00 p.m. a
+    9:00 p.m. (último cliente a las 8:30 p.m.) en `barber_schedules` y
+    en el horario por defecto de un barbero nuevo.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

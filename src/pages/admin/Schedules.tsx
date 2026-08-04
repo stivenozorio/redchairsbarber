@@ -48,7 +48,7 @@ function BarberScheduleEditor({
         day_of_week: d,
         is_open: existing?.is_open ?? false,
         open_time: toTimeInput(existing?.open_time ?? null) || "10:00",
-        close_time: toTimeInput(existing?.close_time ?? null) || "20:00",
+        close_time: toTimeInput(existing?.close_time ?? null) || "21:00",
       };
     })
   );
@@ -138,7 +138,7 @@ function ExceptionForm({ onCreated }: { onCreated: (row: ExceptionRow) => void }
   const [barberId, setBarberId] = useState("todos");
   const [closed, setClosed] = useState(true);
   const [openTime, setOpenTime] = useState("10:00");
-  const [closeTime, setCloseTime] = useState("20:00");
+  const [closeTime, setCloseTime] = useState("21:00");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
