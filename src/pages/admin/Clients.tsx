@@ -1,14 +1,31 @@
 import { useCallback, useEffect, useState } from "react";
-import { FaBirthdayCake, FaCheck, FaExclamationTriangle, FaPen, FaSpinner } from "react-icons/fa";
+import { FaBirthdayCake, FaCheck, FaCoins, FaExclamationTriangle, FaPen, FaSpinner } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import type { Profile } from "../../types/club";
 import { fieldClass, labelClass } from "../../lib/ui";
 import { formatBirthday, formatShortDate } from "../../lib/format";
+import { TIER_FALLBACK, TIER_TEXT_CLASS } from "../../data/tiers";
 
 const RESULT_LIMIT = 200;
 const TODAY = new Date().toISOString().split("T")[0];
 
-function ClientRow({ client, onSaved }: { client: Profile; onSaved: (updated: Profile) => void }) {
+/** Profile + lo que ya calcula club_member_summary (puntos y nivel),
+ * traído aparte en una segunda consulta liviana — mismo patrón que
+ * useStaffBookings con booking_services, en vez de una relación
+ * embebida atada al cache de esquema de PostgREST. */
+interface ClientWithPoints extends Profile {
+  points_balance: number | null;
+  tier_id: string | null;
+  tier_name: string | null;
+}
+
+function ClientRow({
+  client,
+  onSaved,
+}: {
+  client: ClientWithPoints;
+  onSaved: (updated: Profile) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState(client.full_name ?? "");
   const [phone, setPhone] = useState(client.phone ?? "");
@@ -91,6 +108,18 @@ function ClientRow({ client, onSaved }: { client: Profile; onSaved: (updated: Pr
             </span>
           )}
         </p>
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest2">
+          <span
+            className={`flex items-center gap-1.5 rounded-full border border-gold/20 px-3 py-1 ${
+              TIER_TEXT_CLASS[client.tier_id ?? TIER_FALLBACK]
+            }`}
+          >
+            {client.tier_name ?? "Sin nivel asignado"}
+          </span>
+          <span className="flex items-center gap-1.5 rounded-full border border-gold/20 px-3 py-1 text-gold">
+            <FaCoins size={10} /> {client.points_balance ?? 0} puntos
+          </span>
+        </p>
       </div>
       <button
         type="button"
@@ -105,7 +134,7 @@ function ClientRow({ client, onSaved }: { client: Profile; onSaved: (updated: Pr
 
 export default function AdminClients() {
   const [search, setSearch] = useState("");
-  const [clients, setClients] = useState<Profile[]>([]);
+  const [clients, setClients] = useState<ClientWithPoints[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,9 +164,48 @@ export default function AdminClients() {
     if (fetchError) {
       setError(fetchError.message);
       setClients([]);
-    } else {
-      setClients((data as Profile[]) ?? []);
+      setLoading(false);
+      return;
     }
+
+    const rows = (data as Profile[]) ?? [];
+    if (rows.length === 0) {
+      setClients([]);
+      setLoading(false);
+      return;
+    }
+
+    // Puntos y nivel: informativo, no bloqueante — si esta consulta falla,
+    // se muestra la lista igual, solo sin el badge de puntos (mismo
+    // principio que los servicios en useMyBookings/useStaffBookings).
+    const { data: summaryRows, error: summaryError } = await supabase
+      .from("club_member_summary")
+      .select("user_id, points_balance, tier_id, tier_name")
+      .in(
+        "user_id",
+        rows.map((r) => r.id)
+      );
+    if (summaryError) {
+      console.error("No se pudo cargar puntos/nivel de los clientes:", summaryError.message);
+    }
+
+    const byId = new Map(
+      ((summaryRows as unknown as {
+        user_id: string;
+        points_balance: number;
+        tier_id: string | null;
+        tier_name: string | null;
+      }[]) ?? []).map((s) => [s.user_id, s])
+    );
+
+    setClients(
+      rows.map((r) => ({
+        ...r,
+        points_balance: byId.get(r.id)?.points_balance ?? null,
+        tier_id: byId.get(r.id)?.tier_id ?? null,
+        tier_name: byId.get(r.id)?.tier_name ?? null,
+      }))
+    );
     setLoading(false);
   }, [search]);
 
@@ -146,7 +214,7 @@ export default function AdminClients() {
   }, [load]);
 
   const handleSaved = (updated: Profile) => {
-    setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    setClients((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
   };
 
   return (

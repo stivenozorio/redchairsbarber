@@ -349,6 +349,10 @@ Incluye:
 - **Reservas** — todas las reservas, filtrables por fecha, barbero y
   cliente (nombre o teléfono), con cambio de estado en línea.
 - **Clientes** — buscar y editar nombre/teléfono de cualquier cliente.
+  Cada fila muestra también su **nivel y puntos de RED CLUB** (Fase 4,
+  ajuste), leídos de `club_member_summary` en una segunda consulta
+  aparte de `profiles` — informativa, no bloqueante: si falla, la lista
+  de clientes se sigue mostrando, solo sin el badge de puntos.
 - **Servicios** — precio, duración y categoría son la fuente real que
   usa una reserva nueva (no solo el catálogo estático del frontend); un
   servicio no se borra (puede tener historial), se desactiva.
