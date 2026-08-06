@@ -329,6 +329,38 @@ Calendar + fila en `bookings`), sin servicios ni cuenta asociada, con
   citas reales.
 - `supabase/verify.sql` (sección 17) lista los bloqueos activos.
 
+### Bloquear un día completo (Fase 4, ajuste)
+
+Distinto del bloqueo de una hora puntual: un barbero (o un admin,
+eligiendo el barbero) puede marcar que **no va a trabajar un día
+entero** desde `/barbero` (`DayOffForm.tsx`, junto al bloqueo de
+horarios). Ese día deja de ofrecer horas en `/reservar` de inmediato,
+para cualquier servicio.
+
+**Por qué esta sí es solo una fila en Supabase, sin tocar Calendar:**
+a diferencia de la disponibilidad por horas (que depende de Google
+Calendar), el horario de un día completo ya se resuelve consultando
+`schedule_exceptions` — la misma tabla que usa el panel administrativo
+en `/admin/horarios` para festivos y horarios especiales (Fase 2). Un
+día bloqueado por un barbero es exactamente ese mismo tipo de
+excepción (`is_closed = true`), solo que creada por el barbero para su
+propia agenda en vez de por un admin.
+
+- `POST /api/staff/day-off` — recibe `{barberId, date, note}`. Mismo
+  criterio de autorización que el resto de `/api/staff/*`: un barbero
+  solo puede bloquear su propia agenda; un admin, la de cualquiera.
+- `DELETE /api/staff/day-off` — quita el bloqueo (vuelve al horario
+  semanal normal). Solo borra excepciones que esta misma función haya
+  creado (`is_closed = true`); no toca un horario especial que un admin
+  haya configurado a mano desde `/admin/horarios`.
+- **A propósito no cancela citas que ya existan ese día** — mismo
+  comportamiento que ya tenían las excepciones del panel administrativo.
+  El formulario se lo advierte al barbero antes de confirmar
+  (`window.confirm`); si ya tiene citas agendadas, debe cancelarlas o
+  reprogramarlas aparte.
+- `DayOffForm.tsx` también lista los próximos días ya bloqueados de ese
+  barbero, con un botón para quitar el bloqueo.
+
 ### Panel administrativo (Fase 2)
 
 `/admin` — solo visible y accesible para perfiles con `role = 'admin'`

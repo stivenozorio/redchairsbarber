@@ -10,6 +10,7 @@ import { useStaffBookings } from "../../hooks/useStaffBookings";
 import BookingStatusRow from "../../components/staff/BookingStatusRow";
 import ClientProfileModal from "../../components/staff/ClientProfileModal";
 import BlockSlotForm from "../../components/staff/BlockSlotForm";
+import DayOffForm from "../../components/staff/DayOffForm";
 import type { BookingStatus } from "../../types/club";
 
 const STATUS_FILTERS: ("all" | BookingStatus)[] = ["all", ...BOOKING_STATUS_ORDER];
@@ -165,11 +166,15 @@ export default function BarberPanel() {
               </div>
             </div>
 
-            <div className="mt-8">
+            <div className="mt-8 grid gap-6 lg:grid-cols-2">
               <BlockSlotForm
                 barberId={effectiveBarberId === "any" ? null : effectiveBarberId}
                 date={date}
                 onBlocked={() => void reload()}
+              />
+              <DayOffForm
+                barberId={effectiveBarberId === "any" ? null : effectiveBarberId}
+                defaultDate={date}
               />
             </div>
 
