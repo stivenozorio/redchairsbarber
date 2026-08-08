@@ -3,6 +3,7 @@ import {
   FaCalendarAlt,
   FaCheckCircle,
   FaClock,
+  FaCoins,
   FaCut,
   FaExclamationTriangle,
   FaSpinner,
@@ -17,6 +18,8 @@ import {
   sumServiceTotals,
   formatPriceNumber,
   applyLiveOverrides,
+  parsePriceToNumber,
+  calculatePoints,
 } from "../data/services";
 import { BARBERS, TIME_SLOTS } from "../data/booking";
 import { PHONE_NUMBER } from "../data/site";
@@ -158,7 +161,7 @@ export default function Booking() {
     [serviceOverrides]
   );
 
-  const { totalMinutes, totalPrice } = useMemo(
+  const { totalMinutes, totalPrice, totalPoints } = useMemo(
     () => sumServiceTotals(selectedServices, liveServiceCatalog),
     [selectedServices, liveServiceCatalog]
   );
@@ -568,7 +571,12 @@ export default function Booking() {
                                 />
                                 {s.name}
                               </span>
-                              <span className="shrink-0 text-gold/80">{s.price}</span>
+                              <span className="flex shrink-0 flex-col items-end leading-tight">
+                                <span className="text-gold/80">{s.price}</span>
+                                <span className="flex items-center gap-1 text-[10px] text-bone/40">
+                                  <FaCoins size={8} /> +{calculatePoints(parsePriceToNumber(s.price))} pts
+                                </span>
+                              </span>
                             </label>
                           ))}
                         </div>
@@ -582,11 +590,20 @@ export default function Booking() {
                         seleccionado{selectedServices.length > 1 ? "s" : ""} · Duración estimada:{" "}
                         {totalMinutes} min · Total:{" "}
                         <span className="font-semibold text-gold">{formatPriceNumber(totalPrice)}</span>
+                        {" · "}
+                        <span className="inline-flex items-center gap-1 font-semibold text-gold">
+                          <FaCoins size={10} /> +{totalPoints} pts RED CLUB
+                        </span>
                       </>
                     ) : (
                       "Selecciona al menos un servicio."
                     )}
                   </p>
+                  {selectedServices.length > 0 && (
+                    <p className="mt-1 text-[11px] text-bone/40">
+                      Los puntos se acreditan a tu cuenta RED CLUB al completar la cita.
+                    </p>
+                  )}
                 </div>
 
                 <div>

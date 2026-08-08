@@ -284,6 +284,17 @@ Reglas explícitas:
   total_points` dentro de `award_points_on_completion()` (migración
   0017) y volver a ejecutar el archivo — es idempotente.
 
+**Vista previa de puntos al reservar.** La pantalla `/reservar` (ver
+`src/pages/Booking.tsx`) es a la vez el "carrito" y el apartado de
+reservas del sitio — no existen como pantallas separadas — así que ahí
+mismo se muestra, junto al precio de cada servicio en el checkbox, cuántos
+puntos otorgaría (`calculatePoints()` en `src/data/services.ts`, que
+replica exacto `piso(precio / 2000)`), y el resumen de abajo suma el
+total para los servicios elegidos. Es solo informativo: el otorgamiento
+real sigue pasando únicamente en la base de datos, cuando la cita se
+marca "Completada" con una cuenta vinculada — por eso el resumen aclara
+"Los puntos se acreditan a tu cuenta RED CLUB al completar la cita."
+
 **Si el trigger corrió (`visit_count`/`points_transactions` ya están
 correctos en la base) pero la tarjeta digital no aparece en "Mi
 cuenta"**, casi seguro falta `0014_grant_club_summary_views.sql`: RLS

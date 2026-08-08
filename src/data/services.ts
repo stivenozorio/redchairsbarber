@@ -208,6 +208,20 @@ export function parsePriceToNumber(price: string): number {
   return digits ? parseInt(digits, 10) : 0;
 }
 
+/** COP por cada punto RED CLUB otorgado — debe coincidir exacto con la
+ * fórmula del trigger `award_points_on_completion()` (migración
+ * 0017_points_per_service.sql): piso(price_cop_snapshot / 2000). Esto
+ * solo sirve para MOSTRARLE al cliente cuánto ganaría antes de reservar
+ * — el otorgamiento real y autoritativo sigue pasando en la base de
+ * datos cuando la cita se marca "Completada", no aquí. */
+const COP_PER_POINT = 2000;
+
+/** Puntos RED CLUB que otorgaría un servicio de este precio, si la cita
+ * llega a completarse con una cuenta vinculada. Ver COP_PER_POINT. */
+export function calculatePoints(priceCop: number): number {
+  return Math.floor(priceCop / COP_PER_POINT);
+}
+
 export function formatPriceNumber(value: number): string {
   return `$${value.toLocaleString("es-CO")}`;
 }
@@ -255,20 +269,31 @@ export function getServicesByIds(ids: string[], catalog: Service[] = ALL_BOOKABL
 export interface ServiceTotals {
   totalMinutes: number;
   totalPrice: number;
+  /** Suma de calculatePoints() por cada servicio, no calculatePoints()
+   * del total — así una reserva con varios servicios coincide con lo
+   * que de verdad va a otorgar el trigger, que suma por línea de
+   * booking_services (ver 0017_points_per_service.sql). */
+  totalPoints: number;
   services: Service[];
 }
 
-/** Sums the duration and price of a set of selected services by id —
- * used both for the live total shown to the client and, authoritatively,
- * on the server when validating availability and creating the event. */
+/** Sums the duration, price and RED CLUB points of a set of selected
+ * services by id — used both for the live total shown to the client
+ * and, authoritatively, on the server when validating availability and
+ * creating the event (points shown here are informational only: el
+ * otorgamiento real pasa en la base de datos al completar la cita). */
 export function sumServiceTotals(ids: string[], catalog: Service[] = ALL_BOOKABLE_SERVICES): ServiceTotals {
   const services = getServicesByIds(ids, catalog);
   const totals = services.reduce(
-    (acc, s) => ({
-      totalMinutes: acc.totalMinutes + s.durationMinutes,
-      totalPrice: acc.totalPrice + parsePriceToNumber(s.price),
-    }),
-    { totalMinutes: 0, totalPrice: 0 }
+    (acc, s) => {
+      const priceCop = parsePriceToNumber(s.price);
+      return {
+        totalMinutes: acc.totalMinutes + s.durationMinutes,
+        totalPrice: acc.totalPrice + priceCop,
+        totalPoints: acc.totalPoints + calculatePoints(priceCop),
+      };
+    },
+    { totalMinutes: 0, totalPrice: 0, totalPoints: 0 }
   );
   return { ...totals, services };
 }

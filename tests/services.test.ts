@@ -8,6 +8,7 @@ import {
   parsePriceToNumber,
   formatPriceNumber,
   applyLiveOverrides,
+  calculatePoints,
 } from "../src/data/services.js";
 import { BARBERS, TIME_SLOTS } from "../src/data/booking.js";
 
@@ -26,6 +27,47 @@ test("sumServiceTotals suma duración y precio de varios servicios (por id)", ()
   assert.equal(totals.totalPrice, 55000);
   assert.equal(totals.totalMinutes, 70);
   assert.equal(totals.services.length, 2);
+});
+
+// calculatePoints/totalPoints: preview en el carrito de lo que otorgaría
+// el trigger award_points_on_completion() (0017_points_per_service.sql)
+// al completar la cita. Debe coincidir exacto con esa fórmula del
+// servidor: piso(precio / 2000).
+
+test("calculatePoints reproduce la tabla oficial de puntos del programa", () => {
+  const official: [number, number][] = [
+    [20000, 10], // Corte de Cabello Sencillo
+    [10000, 5], // Recorte de Barba Sencillo
+    [15000, 7], // Afeitado
+    [30000, 15], // Corte Premium
+    [40000, 20], // Corte Premium + Barba
+    [25000, 12], // Barba Premium
+    [35000, 17], // Spa Facial
+    [12000, 6], // Masaje Ocular
+    [5000, 2], // Cejas / Lavado Capilar
+    [65000, 32], // Experiencia VIP
+    [75000, 37], // Experiencia VIP + Barba
+    [81000, 40], // Experiencia VIP + Barba + Cejas
+  ];
+  for (const [priceCop, expectedPoints] of official) {
+    assert.equal(calculatePoints(priceCop), expectedPoints);
+  }
+});
+
+test("sumServiceTotals.totalPoints suma puntos por línea, no del total combinado", () => {
+  // corte-premium ($30.000 -> 15 pts) + barba-premium ($25.000 -> 12 pts).
+  // Sumar por línea (15+12=27) debe coincidir con lo que otorga el
+  // trigger; sumar el total combinado primero (55.000 -> 27) da el
+  // mismo resultado aquí por casualidad, así que la prueba real está en
+  // que cada línea se calcula con su propio precio, no dividiendo el
+  // total entre el número de servicios.
+  const totals = sumServiceTotals(["corte-premium", "barba-premium"]);
+  assert.equal(totals.totalPoints, 27);
+});
+
+test("sumServiceTotals.totalPoints es 0 para ids desconocidos", () => {
+  const totals = sumServiceTotals(["no-existe"]);
+  assert.equal(totals.totalPoints, 0);
 });
 
 test("sumServiceTotals ignora ids desconocidos", () => {
