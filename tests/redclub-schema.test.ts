@@ -26,6 +26,7 @@ const awardPoints = readMigration("0013_award_points_on_completion.sql");
 const grantSummaryViews = readMigration("0014_grant_club_summary_views.sql");
 const summaryBirthday = readMigration("0015_club_summary_birthday.sql");
 const extendClosingHour = readMigration("0016_extend_closing_hour.sql");
+const pointsPerService = readMigration("0017_points_per_service.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -520,4 +521,72 @@ test("0016 no borra nada y refresca el cache de PostgREST", () => {
     "no debe borrar datos existentes"
   );
   assert.ok(extendClosingHour.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (ajuste): 0017 puntos según el servicio, no un monto fijo ---
+
+test("0017 ya no otorga un monto fijo de puntos: lo calcula por servicio", () => {
+  assert.ok(
+    !/points_per_visit constant integer := 10/.test(pointsPerService),
+    "no debe quedar el monto fijo de 10 puntos de la versión anterior"
+  );
+  assert.match(pointsPerService, /price_cop_snapshot \/ 2000/);
+  assert.match(pointsPerService, /from public\.booking_services\s+where booking_id = new\.id/);
+});
+
+test("0017 suma los puntos de todos los servicios de la reserva (no solo el primero)", () => {
+  assert.match(pointsPerService, /select coalesce\(sum\(price_cop_snapshot \/ 2000\), 0\)/);
+});
+
+test("0017 sigue otorgando solo cuando la cita pasa a 'completed' por primera vez, con cuenta", () => {
+  assert.match(pointsPerService, /new\.status = 'completed'/);
+  assert.match(pointsPerService, /old\.status is distinct from 'completed'/);
+  assert.match(pointsPerService, /and new\.user_id is not null/);
+});
+
+test("0017 respeta el índice único: no duplica puntos si se corre dos veces", () => {
+  assert.match(pointsPerService, /on conflict \(booking_id\) where reason = 'booking_attended'/);
+  assert.match(pointsPerService, /do nothing/);
+});
+
+test("0017 no otorga una transacción de puntos en cero si la reserva no tiene servicios", () => {
+  assert.match(pointsPerService, /if total_points > 0 then/);
+});
+
+test("0017 sigue sumando la visita a profiles.visit_count en el mismo evento", () => {
+  assert.match(pointsPerService, /update public\.profiles\s+set visit_count = visit_count \+ 1/);
+});
+
+test("0017 reproduce la tabla oficial de puntos del programa", () => {
+  const official: [number, number][] = [
+    [20000, 10], // Corte de Cabello Sencillo
+    [10000, 5], // Recorte de Barba Sencillo
+    [15000, 7], // Afeitado
+    [30000, 15], // Corte Premium
+    [40000, 20], // Corte Premium + Barba
+    [25000, 12], // Barba Premium
+    [35000, 17], // Spa Facial
+    [12000, 6], // Masaje Ocular
+    [5000, 2], // Cejas / Lavado Capilar
+    [65000, 32], // Experiencia VIP
+    [75000, 37], // Experiencia VIP + Barba
+    [81000, 40], // Experiencia VIP + Barba + Cejas (precio real del catálogo)
+  ];
+  for (const [priceCop, expectedPoints] of official) {
+    assert.equal(
+      Math.floor(priceCop / 2000),
+      expectedPoints,
+      `${priceCop} COP debe otorgar ${expectedPoints} puntos`
+    );
+  }
+});
+
+test("0017 no toca puntos ni visitas históricas: no borra ni actualiza filas existentes", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b|\bupdate public\.points_transactions\b/i.test(
+      pointsPerService
+    ),
+    "no debe modificar transacciones de puntos ya existentes"
+  );
+  assert.ok(pointsPerService.includes("notify pgrst, 'reload schema'"));
 });

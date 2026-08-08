@@ -228,14 +228,39 @@ Niveles: **BLACK MEMBER** (0–4 visitas), **RED MEMBER** (5–14),
 
 Marcar una cita como **"Completada"** desde el panel del barbero o el
 administrativo (`POST /api/staff/booking-status`) dispara el trigger
-`bookings_award_points` (migración 0013), que corre en el mismo cambio
-de estado:
+`bookings_award_points`, que corre en el mismo cambio de estado y cuya
+función (`award_points_on_completion()`) se definió en la migración
+0013 y se corrigió en la **0017** (ver abajo):
 
-1. Otorga **10 puntos fijos** en `points_transactions` (motivo
-   `booking_attended`) — nunca proporcional al valor de los servicios.
+1. Otorga puntos en `points_transactions` (motivo `booking_attended`)
+   **según el servicio realizado**, no un monto fijo — ver fórmula
+   abajo.
 2. Suma 1 a `profiles.visit_count`, de donde `tier_for_visits` ya
    deriva el nivel automáticamente (sin lógica nueva: es la misma
    función y la misma vista `club_member_summary` de la Fase 1).
+
+**Puntos por servicio (migración 0017).** Hasta la 0013, toda cita
+completada otorgaba siempre 10 puntos fijos sin importar el servicio.
+La 0017 lo corrigió: ahora cada línea de `booking_services` de la
+reserva otorga `piso(price_cop_snapshot / 2000)` puntos, y si la
+reserva combina varios servicios (ej. Corte + Afeitado por separado),
+se suman los puntos de cada línea. Esta fórmula reproduce exacta la
+tabla oficial del programa:
+
+| Servicio | Precio | Puntos |
+|---|---|---|
+| Cejas / Lavado Capilar | $5.000 | 2 |
+| Recorte de Barba Sencillo / Relajación Facial / Descanso Visual | $10.000 | 5 |
+| Masaje Ocular | $12.000 | 6 |
+| Afeitado / Mascarilla Express | $15.000 | 7 |
+| Corte de Cabello Sencillo | $20.000 | 10 |
+| Barba Premium / Corte + Cejas | $25.000 | 12 |
+| Corte Premium / Corte + Barba | $30.000 | 15 |
+| Spa Facial / Corte Plus + Cejas / Corte + Barba + Cejas | $35.000 | 17 |
+| Corte Premium + Barba / Corte Plus + Barba | $40.000 | 20 |
+| Experiencia VIP | $65.000 | 32 |
+| Experiencia VIP + Barba | $75.000 | 37 |
+| Experiencia VIP + Barba + Cejas | $81.000 | 40 |
 
 Reglas explícitas:
 
@@ -250,9 +275,14 @@ Reglas explícitas:
   visita — es una decisión a propósito, no un olvido. Un ajuste manual
   usaría el motivo `manual_adjustment` que ya existe en el enum, en un
   panel futuro.
-- Para cambiar los puntos por visita, editar la constante
-  `points_per_visit` dentro de `award_points_on_completion()` (migración
-  0013) y volver a ejecutar el archivo — es idempotente.
+- **Los puntos ya otorgados no se tocan.** La 0017 solo cambia el
+  cálculo hacia adelante: no modifica ni recalcula ninguna fila
+  existente de `points_transactions` ni `profiles.visit_count`. El
+  saldo histórico de cada cliente queda exactamente igual que antes de
+  correr esa migración.
+- Para cambiar la fórmula de puntos, editar el `select ... into
+  total_points` dentro de `award_points_on_completion()` (migración
+  0017) y volver a ejecutar el archivo — es idempotente.
 
 **Si el trigger corrió (`visit_count`/`points_transactions` ya están
 correctos en la base) pero la tarjeta digital no aparece en "Mi
@@ -688,6 +718,10 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
 16. `0016_extend_closing_hour.sql` — mueve el cierre de 8:00 p.m. a
     9:00 p.m. (último cliente a las 8:30 p.m.) en `barber_schedules` y
     en el horario por defecto de un barbero nuevo.
+17. `0017_points_per_service.sql` — corrige `award_points_on_completion()`
+    para que otorgue puntos según el servicio realizado (`piso(precio /
+    2000)`, sumado por cada línea de `booking_services`) en vez del monto
+    fijo de 10 puntos de la 0013. No toca puntos ni visitas ya otorgados.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

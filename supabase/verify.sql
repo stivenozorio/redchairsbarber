@@ -244,3 +244,23 @@ select
   barber_id, day_of_week, open_time, close_time
 from public.barber_schedules
 where is_open = true and close_time = time '20:00';
+
+-- 19. Puntos otorgados por reserva vs. lo esperado por servicio (Fase 4, ajuste) ---
+-- Compara, para cada reserva que otorgó puntos, el monto que quedó
+-- registrado en points_transactions contra lo que otorgaría HOY la
+-- fórmula piso(precio/2000) sumada por línea de booking_services.
+-- Filas con 0017_points_per_service.sql corriendo antes de completar la
+-- cita deben coincidir ("✅ Coincide"); reservas completadas ANTES de
+-- correr 0017 pueden mostrar una diferencia (ej. el viejo monto fijo de
+-- 10) — eso es esperado y correcto: el histórico no se toca.
+select
+  pt.booking_id as reserva,
+  pt.amount as puntos_otorgados,
+  coalesce(sum(bs.price_cop_snapshot / 2000), 0) as puntos_esperados_hoy,
+  case when pt.amount = coalesce(sum(bs.price_cop_snapshot / 2000), 0)
+    then '✅ Coincide' else 'ℹ️ Histórico (otorgado antes de 0017 o servicio editado después)' end as estado
+from public.points_transactions pt
+left join public.booking_services bs on bs.booking_id = pt.booking_id
+where pt.reason = 'booking_attended'
+group by pt.booking_id, pt.amount
+order by pt.booking_id;
