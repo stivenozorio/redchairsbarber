@@ -295,6 +295,16 @@ real sigue pasando únicamente en la base de datos, cuando la cita se
 marca "Completada" con una cuenta vinculada — por eso el resumen aclara
 "Los puntos se acreditan a tu cuenta RED CLUB al completar la cita."
 
+**Página pública `/puntos` (Tabla de Puntos).** `src/pages/PointsTable.tsx`
+muestra, agrupado por categoría igual que `/servicios`, una tabla con
+el precio y los puntos RED CLUB de cada servicio del catálogo (misma
+`calculatePoints()`, así que nunca se desincroniza de lo que otorga el
+trigger ni de la vista previa de `/reservar`), con un botón "Reservar
+cita" al final como llamado a la acción. Está enlazada desde
+`/fidelizacion` ("Ver cuántos puntos otorga cada servicio"); no se
+agregó al menú principal (`NAV_LINKS` en `src/data/site.ts`) para no
+sobrecargarlo — se puede agregar ahí si se quiere más visibilidad.
+
 **Si el trigger corrió (`visit_count`/`points_transactions` ya están
 correctos en la base) pero la tarjeta digital no aparece en "Mi
 cuenta"**, casi seguro falta `0014_grant_club_summary_views.sql`: RLS

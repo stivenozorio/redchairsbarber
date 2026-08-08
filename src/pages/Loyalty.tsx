@@ -64,6 +64,12 @@ export default function Loyalty() {
               número de visitas de cada nivel, tus nuevos beneficios se
               desbloquean automáticamente para tu próxima cita.
             </p>
+            <Link
+              to="/puntos"
+              className="mt-6 inline-flex items-center gap-2 text-xs uppercase tracking-widest2 text-gold transition-colors hover:text-gold-light"
+            >
+              Ver cuántos puntos otorga cada servicio <FaArrowRight size={10} />
+            </Link>
           </Reveal>
           <div className="space-y-4">
             {[
