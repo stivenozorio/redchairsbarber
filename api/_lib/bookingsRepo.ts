@@ -30,7 +30,7 @@ export interface CreateBookingInput {
    * api/staff/block-slot.ts). */
   source?: string;
   /** Pagada con puntos RED CLUB en vez de efectivo (ver
-   * 0018_points_redemption.sql). El descuento real de puntos pasa
+   * 0019_points_redeem_functions.sql). El descuento real de puntos pasa
    * aparte, en redeemPointsForBooking — este campo solo deja la
    * reserva marcada como tal desde que se crea. */
   redeemedWithPoints?: boolean;

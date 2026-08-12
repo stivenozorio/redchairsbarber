@@ -74,7 +74,7 @@ test("sumServiceTotals.totalPoints es 0 para ids desconocidos", () => {
 // calculateRedemptionCost: cuánto cuesta CANJEAR (pagar con puntos en
 // vez de efectivo) un servicio — deliberadamente distinta de
 // calculatePoints (con la que se GANAN puntos). Debe coincidir exacto
-// con redeem_points_for_booking() (0018_points_redemption.sql):
+// con redeem_points_for_booking() (0019_points_redeem_functions.sql):
 // piso(precio / 300), redondeo hacia abajo siempre, nunca ceil() ni al
 // más cercano.
 

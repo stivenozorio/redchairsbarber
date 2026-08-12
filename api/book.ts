@@ -30,7 +30,7 @@ interface BookingRequestBody {
   phone?: string;
   notes?: string;
   /** Pagar con puntos RED CLUB en vez de efectivo — ver
-   * 0018_points_redemption.sql. Solo válido con cuenta y con
+   * 0019_points_redeem_functions.sql. Solo válido con cuenta y con
    * exactamente un servicio seleccionado (ver comentario más abajo). */
   redeemWithPoints?: boolean;
 }

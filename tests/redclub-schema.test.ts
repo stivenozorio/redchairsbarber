@@ -27,7 +27,8 @@ const grantSummaryViews = readMigration("0014_grant_club_summary_views.sql");
 const summaryBirthday = readMigration("0015_club_summary_birthday.sql");
 const extendClosingHour = readMigration("0016_extend_closing_hour.sql");
 const pointsPerService = readMigration("0017_points_per_service.sql");
-const pointsRedemption = readMigration("0018_points_redemption.sql");
+const pointsRedemptionEnum = readMigration("0018_points_redemption.sql");
+const pointsRedemption = readMigration("0019_points_redeem_functions.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -598,7 +599,17 @@ test("0017 no toca puntos ni visitas históricas: no borra ni actualiza filas ex
   assert.ok(pointsPerService.includes("notify pgrst, 'reload schema'"));
 });
 
-// --- Fase 4 (ajuste): 0018 canje de servicios con puntos ---
+// --- Fase 4 (ajuste): 0018/0019 canje de servicios con puntos ---
+//
+// Dos migraciones, no una: 0018 SOLO agrega el valor nuevo del enum
+// ('redemption_refund'); 0019 trae todo lo demás (columnas, funciones,
+// índices, trigger) y es quien de verdad usa ese valor. Van separadas
+// porque Postgres no permite usar un valor de enum recién agregado en
+// la misma transacción en la que se agregó (error 55P04) — el SQL
+// Editor de Supabase corre todo el script pegado como una transacción,
+// así que intentarlo en un solo archivo revienta apenas se llega al
+// primer índice/función que referencia el valor nuevo. Hay que correr
+// 0018 solo primero, dejar que confirme, y recién después correr 0019.
 //
 // Nota sobre el alcance de estas pruebas: son pruebas ESTÁTICAS sobre
 // el texto SQL de la migración (mismo estilo que el resto de este
@@ -607,20 +618,33 @@ test("0017 no toca puntos ni visitas históricas: no borra ni actualiza filas ex
 // (bloqueo + recálculo de saldo dentro de la transacción, guardas de
 // condición en el orden correcto, índices únicos) esté presente en el
 // código, no el comportamiento en vivo bajo concurrencia real. Antes de
-// usar el canje en producción, correr la migración en Supabase y
+// usar el canje en producción, correr las migraciones en Supabase y
 // probar manualmente los escenarios de doble clic / doble pestaña.
 
-test("0018 agrega redeemed_with_points y points_redeemed a bookings, con su check de consistencia", () => {
+test("0018 agrega el motivo 'redemption_refund' al enum points_reason, sola en su propio archivo", () => {
+  assert.match(
+    pointsRedemptionEnum,
+    /alter type public\.points_reason add value if not exists 'redemption_refund'/
+  );
+  // No debe traer nada más: si trajera columnas/funciones/índices que
+  // referencien el valor nuevo, volveríamos a pisar el mismo error
+  // 55P04 que motivó separarla.
+  assert.ok(
+    !/create (or replace )?function|create (unique )?index|alter table public\.bookings/i.test(
+      pointsRedemptionEnum
+    ),
+    "0018 debe limitarse a agregar el valor del enum — todo lo demás va en 0019"
+  );
+  assert.ok(pointsRedemptionEnum.includes("notify pgrst, 'reload schema'"));
+});
+
+test("0019 agrega redeemed_with_points y points_redeemed a bookings, con su check de consistencia", () => {
   assert.match(pointsRedemption, /add column if not exists redeemed_with_points boolean not null default false/);
   assert.match(pointsRedemption, /add column if not exists points_redeemed integer/);
   assert.match(pointsRedemption, /add constraint bookings_points_redeemed_consistent/);
 });
 
-test("0018 agrega el motivo 'redemption_refund' al enum points_reason", () => {
-  assert.match(pointsRedemption, /alter type public\.points_reason add value if not exists 'redemption_refund'/);
-});
-
-test("0018 protege con índices únicos: como mucho un canje y un reembolso por reserva", () => {
+test("0019 protege con índices únicos: como mucho un canje y un reembolso por reserva", () => {
   assert.match(
     pointsRedemption,
     /points_tx_one_redemption_per_booking_idx[\s\S]*?where reason = 'reward_redemption' and booking_id is not null/
@@ -631,12 +655,12 @@ test("0018 protege con índices únicos: como mucho un canje y un reembolso por 
   );
 });
 
-test("0018 redeem_points_for_booking rechaza el canje si el costo no es positivo", () => {
+test("0019 redeem_points_for_booking rechaza el canje si el costo no es positivo", () => {
   assert.match(pointsRedemption, /if p_points is null or p_points <= 0 then/);
   assert.match(pointsRedemption, /return query select false, null::integer,/);
 });
 
-test("0018 redeem_points_for_booking recalcula el saldo DENTRO de un bloqueo por usuario (protección contra doble gasto)", () => {
+test("0019 redeem_points_for_booking recalcula el saldo DENTRO de un bloqueo por usuario (protección contra doble gasto)", () => {
   const fnStart = pointsRedemption.indexOf("create or replace function public.redeem_points_for_booking");
   const fnEnd = pointsRedemption.indexOf("$$;", fnStart);
   const fnBody = pointsRedemption.slice(fnStart, fnEnd);
@@ -655,19 +679,19 @@ test("0018 redeem_points_for_booking recalcula el saldo DENTRO de un bloqueo por
   assert.ok(lockIndex >= 0 && balanceReadIndex >= 0 && lockIndex < balanceReadIndex);
 });
 
-test("0018 redeem_points_for_booking rechaza el canje si el saldo (recién recalculado) no alcanza", () => {
+test("0019 redeem_points_for_booking rechaza el canje si el saldo (recién recalculado) no alcanza", () => {
   assert.match(pointsRedemption, /if v_balance < p_points then/);
   assert.match(pointsRedemption, /return query select false, v_balance, 'Saldo de puntos insuficiente\.';/);
 });
 
-test("0018 redeem_points_for_booking descuenta con un monto negativo y motivo 'reward_redemption'", () => {
+test("0019 redeem_points_for_booking descuenta con un monto negativo y motivo 'reward_redemption'", () => {
   assert.match(
     pointsRedemption,
     /insert into public\.points_transactions \(user_id, amount, reason, description, booking_id\)\s*\n\s*values \(p_user_id, -p_points, 'reward_redemption', p_description, p_booking_id\);/
   );
 });
 
-test("0018 redeem_points_for_booking solo lo puede ejecutar el servidor (service_role), nunca el navegador", () => {
+test("0019 redeem_points_for_booking solo lo puede ejecutar el servidor (service_role), nunca el navegador", () => {
   assert.match(
     pointsRedemption,
     /revoke all on function public\.redeem_points_for_booking\(uuid, uuid, integer, text\) from public;/
@@ -678,7 +702,7 @@ test("0018 redeem_points_for_booking solo lo puede ejecutar el servidor (service
   );
 });
 
-test("0018 una reserva canjeada NO otorga los puntos normales del servicio al completarse", () => {
+test("0019 una reserva canjeada NO otorga los puntos normales del servicio al completarse", () => {
   const fnStart = pointsRedemption.lastIndexOf("create or replace function public.award_points_on_completion");
   const fnEnd = pointsRedemption.indexOf("$$;", fnStart);
   const fnBody = pointsRedemption.slice(fnStart, fnEnd);
@@ -691,7 +715,7 @@ test("0018 una reserva canjeada NO otorga los puntos normales del servicio al co
   assert.ok(guardIndex >= 0 && insertIndex > guardIndex);
 });
 
-test("0018 una reserva canjeada y completada SÍ sigue sumando la visita (puntos y visitas son conceptos distintos)", () => {
+test("0019 una reserva canjeada y completada SÍ sigue sumando la visita (puntos y visitas son conceptos distintos)", () => {
   const fnStart = pointsRedemption.lastIndexOf("create or replace function public.award_points_on_completion");
   const fnEnd = pointsRedemption.indexOf("$$;", fnStart);
   const fnBody = pointsRedemption.slice(fnStart, fnEnd);
@@ -706,7 +730,7 @@ test("0018 una reserva canjeada y completada SÍ sigue sumando la visita (puntos
   assert.ok(visitIncrementIndex > guardEnd, "el incremento de visita no debe estar dentro de la guarda de puntos");
 });
 
-test("0018 cancelar una reserva canjeada devuelve los puntos (trigger nuevo, no modifica bookings_award_points)", () => {
+test("0019 cancelar una reserva canjeada devuelve los puntos (trigger nuevo, no modifica bookings_award_points)", () => {
   assert.match(pointsRedemption, /create or replace function public\.refund_points_on_cancellation/);
   assert.match(pointsRedemption, /new\.status = 'cancelled'/);
   assert.match(pointsRedemption, /old\.status is distinct from 'cancelled'/);
@@ -719,7 +743,7 @@ test("0018 cancelar una reserva canjeada devuelve los puntos (trigger nuevo, no 
   assert.match(pointsRedemption, /after update on public\.bookings/);
 });
 
-test("0018 el reembolso está protegido contra duplicarse (on conflict do nothing)", () => {
+test("0019 el reembolso está protegido contra duplicarse (on conflict do nothing)", () => {
   const fnStart = pointsRedemption.indexOf("create or replace function public.refund_points_on_cancellation");
   const fnEnd = pointsRedemption.indexOf("$$;", fnStart);
   const fnBody = pointsRedemption.slice(fnStart, fnEnd);
@@ -727,7 +751,7 @@ test("0018 el reembolso está protegido contra duplicarse (on conflict do nothin
   assert.ok(fnBody.includes("do nothing"));
 });
 
-test("0018 no toca puntos históricos: no borra ni actualiza filas existentes de points_transactions", () => {
+test("0019 no toca puntos históricos: no borra ni actualiza filas existentes de points_transactions", () => {
   assert.ok(
     !/\bdrop table\b|\bdelete from\b|\btruncate\b|\bupdate public\.points_transactions\b/i.test(
       pointsRedemption

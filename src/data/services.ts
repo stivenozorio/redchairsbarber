@@ -226,7 +226,7 @@ export function calculatePoints(priceCop: number): number {
  * — deliberadamente distinto de COP_PER_POINT (esa es la tasa con la
  * que se GANAN puntos al completar una cita, no con la que se gastan).
  * Debe coincidir exacto con `redeem_points_for_booking()` (migración
- * 0018_points_redemption.sql): piso(precio / 300). El resto de valor
+ * 0019_points_redeem_functions.sql): piso(precio / 300). El resto de valor
  * que se pierde al redondear hacia abajo queda como beneficio para el
  * cliente, a propósito — nunca se usa ceil() ni redondeo al más cercano. */
 const COP_PER_REDEMPTION_POINT = 300;

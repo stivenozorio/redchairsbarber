@@ -61,7 +61,7 @@ export interface BookingRow {
    * libre en la base, así que se deja abierta a valores futuros. */
   source: string;
   /** Pagada con puntos RED CLUB en vez de efectivo (ver
-   * 0018_points_redemption.sql). Si es true, points_redeemed siempre
+   * 0019_points_redeem_functions.sql). Si es true, points_redeemed siempre
    * tiene un valor positivo; si es false, points_redeemed es null. Una
    * reserva canjeada NO otorga los puntos normales del servicio al
    * completarse (pero sí sigue sumando la visita). */

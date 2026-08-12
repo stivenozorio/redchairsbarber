@@ -354,9 +354,23 @@ sobrecargarlo — se puede agregar ahí si se quiere más visibilidad.
 
 ### Canje de servicios con puntos (Fase 4, ajuste)
 
-Migración `0018_points_redemption.sql`. Un cliente con cuenta y
-suficientes puntos puede pagar **un servicio** con puntos en vez de
-efectivo, directamente desde `/reservar`.
+Migraciones `0018_points_redemption.sql` + `0019_points_redeem_functions.sql`
+(**dos archivos, hay que correrlos en ese orden, cada uno por
+separado**). Un cliente con cuenta y suficientes puntos puede pagar
+**un servicio** con puntos en vez de efectivo, directamente desde
+`/reservar`.
+
+**Por qué son dos migraciones y no una.** `0018` solo agrega el valor
+nuevo del enum `points_reason` (`'redemption_refund'`); `0019` trae
+todo lo demás (columnas, funciones, índices, trigger) y es quien
+realmente usa ese valor. Postgres no permite usar un valor de enum
+recién agregado dentro de la misma transacción en la que se agregó —
+error `55P04: unsafe use of new value ...`. El SQL Editor de Supabase
+corre todo el script pegado como una sola transacción, así que
+intentarlo en un solo archivo revienta apenas se llega al primer
+índice/función que referencia el valor nuevo (esto pasó de verdad la
+primera vez que se corrió). La solución: correr `0018` solo, dejar que
+confirme, y recién después correr `0019`.
 
 **Tasa de canje: 1 punto = $300 COP**, `piso(precio / 300)` —
 deliberadamente distinta de la tasa con la que se GANAN puntos
@@ -916,16 +930,20 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     para que otorgue puntos según el servicio realizado (`piso(precio /
     2000)`, sumado por cada línea de `booking_services`) en vez del monto
     fijo de 10 puntos de la 0013. No toca puntos ni visitas ya otorgados.
-18. `0018_points_redemption.sql` — agrega el canje de UN servicio con
-    puntos (`piso(precio / 300)`, 1 punto = $300 COP): columnas
-    `bookings.redeemed_with_points`/`points_redeemed`, la función
-    atómica `redeem_points_for_booking()` (bloqueo por usuario +
-    recálculo de saldo, protegida contra doble gasto), el trigger nuevo
-    `refund_points_on_cancellation()` (devuelve los puntos si se
+18. `0018_points_redemption.sql` — agrega SOLO el valor `'redemption_refund'`
+    al enum `points_reason`. Correr sola y dejar que confirme antes de
+    la 0019 (ver la nota de arriba sobre por qué está separada).
+19. `0019_points_redeem_functions.sql` — el resto del canje de UN
+    servicio con puntos (`piso(precio / 300)`, 1 punto = $300 COP):
+    columnas `bookings.redeemed_with_points`/`points_redeemed`, la
+    función atómica `redeem_points_for_booking()` (bloqueo por usuario
+    + recálculo de saldo, protegida contra doble gasto), el trigger
+    nuevo `refund_points_on_cancellation()` (devuelve los puntos si se
     cancela una reserva canjeada), y un ajuste de una línea en
     `award_points_on_completion()` para que una reserva canjeada no
     otorgue además los puntos normales del servicio (pero sí siga
-    sumando la visita). No toca ningún punto ni visita ya otorgados.
+    sumando la visita). Ninguna de las dos toca ningún punto ni visita
+    ya otorgados.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

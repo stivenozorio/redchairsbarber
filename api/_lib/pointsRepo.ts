@@ -11,7 +11,7 @@ export interface RedeemPointsResult {
 /**
  * Descuenta puntos por canjear un servicio, de forma atómica y segura
  * contra doble gasto: llama a `redeem_points_for_booking()` (migración
- * 0018_points_redemption.sql), que recalcula el saldo real DENTRO de
+ * 0019_points_redeem_functions.sql), que recalcula el saldo real DENTRO de
  * un bloqueo por usuario antes de insertar el descuento — nunca confía
  * en un saldo que el navegador haya calculado o mostrado antes.
  *

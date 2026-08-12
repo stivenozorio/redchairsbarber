@@ -274,14 +274,14 @@ select
     select 1 from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = f.nombre
-  ) then '✅ OK' else '❌ FALTA — ejecuta 0018_points_redemption.sql' end as estado
+  ) then '✅ OK' else '❌ FALTA — ejecuta 0018/0019 (ver sección 20)' end as estado
 from (values ('redeem_points_for_booking'), ('refund_points_on_cancellation')) as f(nombre);
 
 select
   case when exists (
     select 1 from information_schema.triggers
     where trigger_name = 'bookings_refund_points'
-  ) then '✅ OK' else '❌ FALTA — ejecuta 0018_points_redemption.sql' end as trigger_bookings_refund_points;
+  ) then '✅ OK' else '❌ FALTA — ejecuta 0018/0019 (ver sección 20)' end as trigger_bookings_refund_points;
 
 -- 20b. Reservas canjeadas: precio original conservado, puntos
 -- descontados en el ledger, y coherencia entre redeemed_with_points y
