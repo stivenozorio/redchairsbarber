@@ -4,7 +4,7 @@ import type { BookingRow, BookingServiceRow } from "../types/club";
 import { useAuth } from "../auth/useAuth";
 
 const STAFF_COLUMNS =
-  "id, user_id, barber_id, status, starts_at, ends_at, total_price_cop, total_duration_minutes, customer_name, notes, google_event_id, created_at, source";
+  "id, user_id, barber_id, status, starts_at, ends_at, total_price_cop, total_duration_minutes, customer_name, notes, google_event_id, created_at, source, redeemed_with_points, points_redeemed";
 
 /**
  * Reservas para el panel administrativo y el panel del barbero — mismo

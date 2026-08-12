@@ -9,6 +9,7 @@ import {
   formatPriceNumber,
   applyLiveOverrides,
   calculatePoints,
+  calculateRedemptionCost,
 } from "../src/data/services.js";
 import { BARBERS, TIME_SLOTS } from "../src/data/booking.js";
 
@@ -68,6 +69,35 @@ test("sumServiceTotals.totalPoints suma puntos por línea, no del total combinad
 test("sumServiceTotals.totalPoints es 0 para ids desconocidos", () => {
   const totals = sumServiceTotals(["no-existe"]);
   assert.equal(totals.totalPoints, 0);
+});
+
+// calculateRedemptionCost: cuánto cuesta CANJEAR (pagar con puntos en
+// vez de efectivo) un servicio — deliberadamente distinta de
+// calculatePoints (con la que se GANAN puntos). Debe coincidir exacto
+// con redeem_points_for_booking() (0018_points_redemption.sql):
+// piso(precio / 300), redondeo hacia abajo siempre, nunca ceil() ni al
+// más cercano.
+
+test("calculateRedemptionCost reproduce los ejemplos oficiales del canje", () => {
+  const official: [number, number][] = [
+    [20000, 66], // Corte de Cabello Sencillo: 66,66 -> 66
+    [10000, 33], // Recorte de Barba: 33,33 -> 33
+    [15000, 50], // Afeitado: 50 -> 50
+    [30000, 100], // Corte Premium: 100 -> 100
+    [65000, 216], // Experiencia VIP: 216,66 -> 216
+  ];
+  for (const [priceCop, expectedPoints] of official) {
+    assert.equal(calculateRedemptionCost(priceCop), expectedPoints);
+  }
+});
+
+test("calculateRedemptionCost siempre redondea hacia abajo, nunca al más cercano", () => {
+  // $299 quedaría a 0.33 puntos de redondear "al más cercano" a 1, pero
+  // el redondeo hacia abajo exigido explícitamente debe dar 0.
+  assert.equal(calculateRedemptionCost(299), 0);
+  // $599 -> 1,99 puntos: redondear al más cercano daría 2, pero debe
+  // dar 1 (piso, no round()).
+  assert.equal(calculateRedemptionCost(599), 1);
 });
 
 test("sumServiceTotals ignora ids desconocidos", () => {

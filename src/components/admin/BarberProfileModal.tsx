@@ -107,6 +107,9 @@ export default function BarberProfileModal({
                     <span className="text-gold/70">{BOOKING_STATUS_LABEL[b.status]}</span>
                     <span className="text-bone/40">·</span>
                     <span className="text-bone/50">{formatCop(b.total_price_cop)}</span>
+                    {b.redeemed_with_points && (
+                      <span className="text-gold">· Canjeado ({b.points_redeemed} pts)</span>
+                    )}
                   </p>
                 </div>
               ))

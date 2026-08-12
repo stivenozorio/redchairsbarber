@@ -27,6 +27,7 @@ const grantSummaryViews = readMigration("0014_grant_club_summary_views.sql");
 const summaryBirthday = readMigration("0015_club_summary_birthday.sql");
 const extendClosingHour = readMigration("0016_extend_closing_hour.sql");
 const pointsPerService = readMigration("0017_points_per_service.sql");
+const pointsRedemption = readMigration("0018_points_redemption.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -589,4 +590,143 @@ test("0017 no toca puntos ni visitas históricas: no borra ni actualiza filas ex
     "no debe modificar transacciones de puntos ya existentes"
   );
   assert.ok(pointsPerService.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (ajuste): 0018 canje de servicios con puntos ---
+//
+// Nota sobre el alcance de estas pruebas: son pruebas ESTÁTICAS sobre
+// el texto SQL de la migración (mismo estilo que el resto de este
+// archivo) — no ejecutan contra una base Postgres real, porque este
+// entorno no tiene una disponible. Verifican que el patrón correcto
+// (bloqueo + recálculo de saldo dentro de la transacción, guardas de
+// condición en el orden correcto, índices únicos) esté presente en el
+// código, no el comportamiento en vivo bajo concurrencia real. Antes de
+// usar el canje en producción, correr la migración en Supabase y
+// probar manualmente los escenarios de doble clic / doble pestaña.
+
+test("0018 agrega redeemed_with_points y points_redeemed a bookings, con su check de consistencia", () => {
+  assert.match(pointsRedemption, /add column if not exists redeemed_with_points boolean not null default false/);
+  assert.match(pointsRedemption, /add column if not exists points_redeemed integer/);
+  assert.match(pointsRedemption, /add constraint bookings_points_redeemed_consistent/);
+});
+
+test("0018 agrega el motivo 'redemption_refund' al enum points_reason", () => {
+  assert.match(pointsRedemption, /alter type public\.points_reason add value if not exists 'redemption_refund'/);
+});
+
+test("0018 protege con índices únicos: como mucho un canje y un reembolso por reserva", () => {
+  assert.match(
+    pointsRedemption,
+    /points_tx_one_redemption_per_booking_idx[\s\S]*?where reason = 'reward_redemption' and booking_id is not null/
+  );
+  assert.match(
+    pointsRedemption,
+    /points_tx_one_refund_per_booking_idx[\s\S]*?where reason = 'redemption_refund' and booking_id is not null/
+  );
+});
+
+test("0018 redeem_points_for_booking rechaza el canje si el costo no es positivo", () => {
+  assert.match(pointsRedemption, /if p_points is null or p_points <= 0 then/);
+  assert.match(pointsRedemption, /return query select false, null::integer,/);
+});
+
+test("0018 redeem_points_for_booking recalcula el saldo DENTRO de un bloqueo por usuario (protección contra doble gasto)", () => {
+  const fnStart = pointsRedemption.indexOf("create or replace function public.redeem_points_for_booking");
+  const fnEnd = pointsRedemption.indexOf("$$;", fnStart);
+  const fnBody = pointsRedemption.slice(fnStart, fnEnd);
+
+  assert.ok(fnBody.includes("pg_advisory_xact_lock(hashtext(p_user_id::text))"), "debe tomar un bloqueo por usuario");
+  assert.ok(
+    fnBody.includes("select coalesce(sum(amount), 0) into v_balance"),
+    "debe recalcular el saldo real, no confiar en uno recibido"
+  );
+
+  // El orden importa: el bloqueo debe tomarse ANTES de leer el saldo,
+  // si no, dos transacciones concurrentes podrían leer el mismo saldo
+  // "viejo" antes de que cualquiera de las dos alcance a descontar.
+  const lockIndex = fnBody.indexOf("pg_advisory_xact_lock");
+  const balanceReadIndex = fnBody.indexOf("select coalesce(sum(amount), 0) into v_balance");
+  assert.ok(lockIndex >= 0 && balanceReadIndex >= 0 && lockIndex < balanceReadIndex);
+});
+
+test("0018 redeem_points_for_booking rechaza el canje si el saldo (recién recalculado) no alcanza", () => {
+  assert.match(pointsRedemption, /if v_balance < p_points then/);
+  assert.match(pointsRedemption, /return query select false, v_balance, 'Saldo de puntos insuficiente\.';/);
+});
+
+test("0018 redeem_points_for_booking descuenta con un monto negativo y motivo 'reward_redemption'", () => {
+  assert.match(
+    pointsRedemption,
+    /insert into public\.points_transactions \(user_id, amount, reason, description, booking_id\)\s*\n\s*values \(p_user_id, -p_points, 'reward_redemption', p_description, p_booking_id\);/
+  );
+});
+
+test("0018 redeem_points_for_booking solo lo puede ejecutar el servidor (service_role), nunca el navegador", () => {
+  assert.match(
+    pointsRedemption,
+    /revoke all on function public\.redeem_points_for_booking\(uuid, uuid, integer, text\) from public;/
+  );
+  assert.match(
+    pointsRedemption,
+    /grant execute on function public\.redeem_points_for_booking\(uuid, uuid, integer, text\) to service_role;/
+  );
+});
+
+test("0018 una reserva canjeada NO otorga los puntos normales del servicio al completarse", () => {
+  const fnStart = pointsRedemption.lastIndexOf("create or replace function public.award_points_on_completion");
+  const fnEnd = pointsRedemption.indexOf("$$;", fnStart);
+  const fnBody = pointsRedemption.slice(fnStart, fnEnd);
+
+  assert.ok(fnBody.includes("if not new.redeemed_with_points then"), "el otorgamiento debe quedar condicionado");
+  // La suma de la línea de booking_attended debe estar DENTRO de ese
+  // if — no basta con que la palabra exista en algún lado del cuerpo.
+  const guardIndex = fnBody.indexOf("if not new.redeemed_with_points then");
+  const insertIndex = fnBody.indexOf("'booking_attended'");
+  assert.ok(guardIndex >= 0 && insertIndex > guardIndex);
+});
+
+test("0018 una reserva canjeada y completada SÍ sigue sumando la visita (puntos y visitas son conceptos distintos)", () => {
+  const fnStart = pointsRedemption.lastIndexOf("create or replace function public.award_points_on_completion");
+  const fnEnd = pointsRedemption.indexOf("$$;", fnStart);
+  const fnBody = pointsRedemption.slice(fnStart, fnEnd);
+
+  // set visit_count = visit_count + 1 debe estar FUERA del "if not
+  // new.redeemed_with_points" (que solo envuelve el otorgamiento de
+  // puntos) — si quedara adentro, una cita canjeada nunca subiría de
+  // nivel, lo cual el usuario pidió explícitamente que no pasara.
+  const guardStart = fnBody.indexOf("if not new.redeemed_with_points then");
+  const guardEnd = fnBody.indexOf("end if;", guardStart);
+  const visitIncrementIndex = fnBody.indexOf("set visit_count = visit_count + 1");
+  assert.ok(visitIncrementIndex > guardEnd, "el incremento de visita no debe estar dentro de la guarda de puntos");
+});
+
+test("0018 cancelar una reserva canjeada devuelve los puntos (trigger nuevo, no modifica bookings_award_points)", () => {
+  assert.match(pointsRedemption, /create or replace function public\.refund_points_on_cancellation/);
+  assert.match(pointsRedemption, /new\.status = 'cancelled'/);
+  assert.match(pointsRedemption, /old\.status is distinct from 'cancelled'/);
+  assert.match(pointsRedemption, /new\.redeemed_with_points/);
+  assert.match(
+    pointsRedemption,
+    /values \(\s*new\.user_id,\s*new\.points_redeemed,\s*'redemption_refund',/
+  );
+  assert.match(pointsRedemption, /create trigger bookings_refund_points/);
+  assert.match(pointsRedemption, /after update on public\.bookings/);
+});
+
+test("0018 el reembolso está protegido contra duplicarse (on conflict do nothing)", () => {
+  const fnStart = pointsRedemption.indexOf("create or replace function public.refund_points_on_cancellation");
+  const fnEnd = pointsRedemption.indexOf("$$;", fnStart);
+  const fnBody = pointsRedemption.slice(fnStart, fnEnd);
+  assert.ok(fnBody.includes("on conflict (booking_id) where reason = 'redemption_refund'"));
+  assert.ok(fnBody.includes("do nothing"));
+});
+
+test("0018 no toca puntos históricos: no borra ni actualiza filas existentes de points_transactions", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b|\bupdate public\.points_transactions\b/i.test(
+      pointsRedemption
+    ),
+    "no debe modificar transacciones de puntos ya existentes — solo inserta filas nuevas hacia adelante"
+  );
+  assert.ok(pointsRedemption.includes("notify pgrst, 'reload schema'"));
 });

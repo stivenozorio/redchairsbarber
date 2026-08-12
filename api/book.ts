@@ -18,7 +18,8 @@ import {
   createBookingRecord,
   discardBooking,
 } from "./_lib/bookingsRepo.js";
-import { sumServiceTotals, formatPriceNumber } from "../src/data/services.js";
+import { redeemPointsForBooking } from "./_lib/pointsRepo.js";
+import { sumServiceTotals, formatPriceNumber, calculateRedemptionCost } from "../src/data/services.js";
 
 interface BookingRequestBody {
   services?: string[];
@@ -28,6 +29,10 @@ interface BookingRequestBody {
   name?: string;
   phone?: string;
   notes?: string;
+  /** Pagar con puntos RED CLUB en vez de efectivo — ver
+   * 0018_points_redemption.sql. Solo válido con cuenta y con
+   * exactamente un servicio seleccionado (ver comentario más abajo). */
+  redeemWithPoints?: boolean;
 }
 
 function assertBookingBody(body: BookingRequestBody) {
@@ -65,9 +70,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const body = (req.body ?? {}) as BookingRequestBody;
     assertBookingBody(body);
-    const { services, barberId, date, time, name, phone, notes } = body as Required<
-      Omit<BookingRequestBody, "notes">
-    > & { notes?: string };
+    const { services, barberId, date, time, name, phone, notes, redeemWithPoints } = body as Required<
+      Omit<BookingRequestBody, "notes" | "redeemWithPoints">
+    > & { notes?: string; redeemWithPoints?: boolean };
 
     if (barberId !== "any" && !isBarberId(barberId)) {
       throw new InvalidScheduleInputError(`Barbero inválido: ${barberId}`);
@@ -85,6 +90,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new InvalidScheduleInputError("No se reconoció ningún servicio válido.");
     }
 
+    // El canje con puntos solo aplica a una reserva de UN solo servicio:
+    // booking_services no tiene (ni necesita) un concepto de "método de
+    // pago por línea" — el precio siempre ha sido de la reserva
+    // completa. Requiere cuenta porque los puntos son de un perfil, no
+    // de un invitado. El costo se recalcula aquí con el precio vivo del
+    // catálogo (no uno que haya mandado el navegador).
+    const userId = await getUserIdFromRequest(req);
+    let pointsCost = 0;
+    if (redeemWithPoints) {
+      if (!userId) {
+        throw new InvalidScheduleInputError("Debes iniciar sesión para canjear puntos.");
+      }
+      if (resolvedServices.length !== 1) {
+        throw new InvalidScheduleInputError(
+          "El canje con puntos solo está disponible para reservas de un solo servicio."
+        );
+      }
+      pointsCost = calculateRedemptionCost(totalPrice);
+      if (pointsCost <= 0) {
+        throw new InvalidScheduleInputError("Este servicio no se puede canjear con puntos.");
+      }
+    }
+
     const calendar = getCalendarClient();
     const { startISO, endISO } = buildSlotRange(date, time, totalMinutes);
 
@@ -97,6 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "Servicios:",
         servicesList,
         `Valor total: ${formatPriceNumber(totalPrice)}`,
+        redeemWithPoints ? `Pagado con puntos RED CLUB: ${pointsCost} puntos` : null,
         notes?.trim() ? `Observaciones: ${notes.trim()}` : null,
       ]
         .filter(Boolean)
@@ -116,6 +145,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           services: services.join("|"),
           totalPrice: String(totalPrice),
           notes: notes ?? "",
+          redeemedWithPoints: String(Boolean(redeemWithPoints)),
+          pointsRedeemed: redeemWithPoints ? String(pointsCost) : "",
         },
       },
     });
@@ -180,13 +211,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Flujo definido para RED CLUB:
     //   1. Guardar la reserva + sus servicios en Supabase (fuente de verdad)
-    //   2. Crear el evento en Google Calendar (agenda del barbero)
-    //   3. Guardar el google_event_id y confirmar
+    //   2. Si es un canje, descontar los puntos de forma atómica
+    //   3. Crear el evento en Google Calendar (agenda del barbero)
+    //   4. Guardar el google_event_id y confirmar
     //
-    // Si el paso 1 falla, se ABORTA: no se crea el evento en Calendar.
-    // Una cita en la agenda sin registro en la base no se puede mostrar
-    // en "Mi cuenta", ni cancelar, ni contar para el club.
-    const userId = await getUserIdFromRequest(req);
+    // Si cualquier paso falla, se ABORTA descartando todo lo anterior:
+    // una cita en la agenda sin registro en la base no se puede mostrar
+    // en "Mi cuenta", ni cancelar, ni contar para el club — y una
+    // reserva "canjeada" sin el descuento real de puntos sería un canje
+    // gratis.
     const { bookingId, error: dbError } = await createBookingRecord({
       userId,
       barberId: assignedTo,
@@ -198,6 +231,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customerPhone: phone,
       notes,
       services: resolvedServices,
+      redeemedWithPoints: Boolean(redeemWithPoints),
+      pointsRedeemed: redeemWithPoints ? pointsCost : undefined,
     });
 
     if (dbError) {
@@ -206,6 +241,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         detail: dbError,
       });
       return;
+    }
+
+    if (redeemWithPoints && userId && bookingId) {
+      const redemption = await redeemPointsForBooking(
+        userId,
+        bookingId,
+        pointsCost,
+        `Canje — ${resolvedServices[0].name}`
+      );
+      if (!redemption.ok) {
+        await discardBooking(bookingId);
+        res.status(409).json({
+          error: redemption.error ?? "No tienes suficientes puntos para canjear este servicio.",
+        });
+        return;
+      }
     }
 
     let event;
@@ -243,6 +294,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       assignedBarberName: barberName(assignedTo),
       totalMinutes,
       totalPrice,
+      redeemedWithPoints: Boolean(redeemWithPoints),
+      pointsRedeemed: redeemWithPoints ? pointsCost : null,
     });
   } catch (error) {
     sendApiError(res, error);

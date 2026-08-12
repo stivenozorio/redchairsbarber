@@ -39,7 +39,7 @@ export function useBarberBookingHistory(barberId: string | null): UseBarberBooki
       .select(
         "id, user_id, barber_id, status, starts_at, ends_at, total_price_cop, " +
           "total_duration_minutes, customer_name, customer_phone, notes, " +
-          "google_event_id, source, created_at"
+          "google_event_id, source, created_at, redeemed_with_points, points_redeemed"
       )
       .eq("barber_id", barberId)
       .neq("source", "blocked")

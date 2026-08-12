@@ -264,3 +264,69 @@ left join public.booking_services bs on bs.booking_id = pt.booking_id
 where pt.reason = 'booking_attended'
 group by pt.booking_id, pt.amount
 order by pt.booking_id;
+
+-- 20. Canje de servicios con puntos (Fase 4, ajuste) -------------------
+
+-- 20a. Función y trigger nuevos deben existir.
+select
+  f.nombre as funcion_esperada,
+  case when exists (
+    select 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = f.nombre
+  ) then '✅ OK' else '❌ FALTA — ejecuta 0018_points_redemption.sql' end as estado
+from (values ('redeem_points_for_booking'), ('refund_points_on_cancellation')) as f(nombre);
+
+select
+  case when exists (
+    select 1 from information_schema.triggers
+    where trigger_name = 'bookings_refund_points'
+  ) then '✅ OK' else '❌ FALTA — ejecuta 0018_points_redemption.sql' end as trigger_bookings_refund_points;
+
+-- 20b. Reservas canjeadas: precio original conservado, puntos
+-- descontados en el ledger, y coherencia entre redeemed_with_points y
+-- points_redeemed (el check de la migración ya lo garantiza a nivel de
+-- base, esto es solo para inspección visual rápida).
+select
+  b.id as reserva, b.status, b.total_price_cop, b.points_redeemed, b.created_at
+from public.bookings b
+where b.redeemed_with_points
+order by b.created_at desc;
+
+-- 20c. Toda reserva canjeada debe tener su descuento en el ledger —
+-- debe estar vacío. Si no lo está, el canje quedó marcado en la
+-- reserva pero el descuento de puntos no se aplicó (no debería poder
+-- pasar: api/book.ts descarta la reserva si redeemPointsForBooking
+-- falla, pero sirve como chequeo de integridad).
+select
+  b.id as reserva, b.user_id, b.points_redeemed
+from public.bookings b
+where b.redeemed_with_points
+  and not exists (
+    select 1 from public.points_transactions pt
+    where pt.booking_id = b.id and pt.reason = 'reward_redemption'
+  );
+
+-- 20d. Reservas canjeadas y luego canceladas: deben tener su
+-- reembolso. Debe estar vacío.
+select
+  b.id as reserva, b.user_id, b.points_redeemed, b.cancelled_at
+from public.bookings b
+where b.redeemed_with_points
+  and b.status = 'cancelled'
+  and not exists (
+    select 1 from public.points_transactions pt
+    where pt.booking_id = b.id and pt.reason = 'redemption_refund'
+  );
+
+-- 20e. Reservas canjeadas y completadas: NO deben tener puntos por
+-- visita además del canje. Debe estar vacío.
+select
+  b.id as reserva, b.user_id
+from public.bookings b
+where b.redeemed_with_points
+  and b.status = 'completed'
+  and exists (
+    select 1 from public.points_transactions pt
+    where pt.booking_id = b.id and pt.reason = 'booking_attended'
+  );

@@ -60,7 +60,39 @@ export interface BookingRow {
    * api/staff/block-slot.ts) — no es una cita real. Columna de texto
    * libre en la base, así que se deja abierta a valores futuros. */
   source: string;
+  /** Pagada con puntos RED CLUB en vez de efectivo (ver
+   * 0018_points_redemption.sql). Si es true, points_redeemed siempre
+   * tiene un valor positivo; si es false, points_redeemed es null. Una
+   * reserva canjeada NO otorga los puntos normales del servicio al
+   * completarse (pero sí sigue sumando la visita). */
+  redeemed_with_points: boolean;
+  points_redeemed: number | null;
   booking_services?: BookingServiceRow[];
+}
+
+/** Motivos del ledger de puntos (points_transactions.reason) — espejo
+ * del enum points_reason. Varios todavía no se usan en la interfaz
+ * (quedan para Fase 5: referidos, recompensas), pero se tipan todos
+ * para no tener que volver a tocar esto cuando se activen. */
+export type PointsReason =
+  | "booking_attended"
+  | "referral_bonus"
+  | "referral_welcome"
+  | "reward_redemption"
+  | "redemption_refund"
+  | "birthday_bonus"
+  | "promotion"
+  | "manual_adjustment"
+  | "no_show_penalty"
+  | "expiration";
+
+export interface PointsTransactionRow {
+  id: string;
+  amount: number;
+  reason: PointsReason;
+  description: string | null;
+  booking_id: string | null;
+  created_at: string;
 }
 
 /** Vista club_member_summary — ya calcula puntos y nivel aunque la

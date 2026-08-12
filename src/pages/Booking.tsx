@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import {
   FaCalendarAlt,
   FaCheckCircle,
   FaClock,
   FaCoins,
   FaCut,
+  FaExchangeAlt,
   FaExclamationTriangle,
   FaSpinner,
   FaUser,
@@ -20,11 +22,13 @@ import {
   applyLiveOverrides,
   parsePriceToNumber,
   calculatePoints,
+  calculateRedemptionCost,
 } from "../data/services";
 import { BARBERS, TIME_SLOTS } from "../data/booking";
 import { PHONE_NUMBER } from "../data/site";
 import { useAuth } from "../auth/useAuth";
 import { useServiceOverrides } from "../hooks/useServiceOverrides";
+import { useMemberSummary } from "../hooks/useMemberSummary";
 
 const fieldClass =
   "w-full rounded-sm border border-gold/20 bg-obsidian px-5 py-4 text-sm text-ivory placeholder:text-bone/40 focus:border-gold focus:outline-none transition-colors disabled:opacity-50";
@@ -49,6 +53,8 @@ interface StoredBooking {
   phone: string;
   notes: string;
   totalPrice: number;
+  redeemedWithPoints: boolean;
+  pointsRedeemed: number | null;
 }
 
 interface AvailabilitySlot {
@@ -74,6 +80,8 @@ interface BookResponse {
   assignedBarberId: string;
   assignedBarberName: string;
   totalPrice: number;
+  redeemedWithPoints: boolean;
+  pointsRedeemed: number | null;
 }
 
 function loadStoredBooking(): StoredBooking | null {
@@ -87,7 +95,14 @@ function loadStoredBooking(): StoredBooking | null {
       localStorage.removeItem(BOOKING_STORAGE_KEY);
       return null;
     }
-    return parsed as StoredBooking;
+    // redeemedWithPoints/pointsRedeemed no existían antes de agregar el
+    // canje: una reserva guardada en el navegador antes de este cambio
+    // simplemente no fue canjeada.
+    return {
+      ...parsed,
+      redeemedWithPoints: parsed.redeemedWithPoints ?? false,
+      pointsRedeemed: parsed.pointsRedeemed ?? null,
+    } as StoredBooking;
   } catch {
     return null;
   }
@@ -165,6 +180,22 @@ export default function Booking() {
     () => sumServiceTotals(selectedServices, liveServiceCatalog),
     [selectedServices, liveServiceCatalog]
   );
+
+  // Canje con puntos: solo aplica a una reserva de UN solo servicio
+  // (ver comentario en api/book.ts sobre por qué booking_services no
+  // soporta canjes parciales). El saldo se muestra en vivo desde
+  // club_member_summary, pero quien decide si el canje procede de
+  // verdad es siempre el servidor, no esta pantalla.
+  const { summary: memberSummary, reload: reloadMemberSummary } = useMemberSummary(profile?.id);
+  const [redeemWithPoints, setRedeemWithPoints] = useState(false);
+  const isSingleService = selectedServices.length === 1;
+  const redemptionCost = isSingleService ? calculateRedemptionCost(totalPrice) : 0;
+  const pointsBalance = memberSummary?.points_balance ?? 0;
+  const canRedeem = Boolean(session) && redemptionCost > 0 && pointsBalance >= redemptionCost;
+
+  useEffect(() => {
+    if (!canRedeem && redeemWithPoints) setRedeemWithPoints(false);
+  }, [canRedeem, redeemWithPoints]);
 
   const [availability, setAvailability] = useState<Record<string, boolean> | null>(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
@@ -274,7 +305,16 @@ export default function Booking() {
       const res = await fetch("/api/book", {
         method: "POST",
         headers,
-        body: JSON.stringify({ services: selectedServices, barberId, date, time, name, phone, notes }),
+        body: JSON.stringify({
+          services: selectedServices,
+          barberId,
+          date,
+          time,
+          name,
+          phone,
+          notes,
+          redeemWithPoints,
+        }),
       });
 
       if (!res.ok) {
@@ -284,6 +324,9 @@ export default function Booking() {
           fetchAvailability(date, barberId, selectedServices).then((slots) => {
             setAvailability(toAvailabilityMap(slots));
           });
+          // Si el canje falló por saldo insuficiente, el saldo mostrado
+          // podría estar desactualizado (p. ej. dos pestañas abiertas).
+          if (redeemWithPoints) void reloadMemberSummary();
         }
         whatsappTab?.close();
         setSubmitting(false);
@@ -310,11 +353,15 @@ export default function Booking() {
       phone,
       notes,
       totalPrice: result.totalPrice,
+      redeemedWithPoints: result.redeemedWithPoints,
+      pointsRedeemed: result.pointsRedeemed,
     };
     saveStoredBooking(booking);
     setMyBooking(booking);
     setSubmitting(false);
     setSuccessPending(true);
+    setRedeemWithPoints(false);
+    if (result.redeemedWithPoints) void reloadMemberSummary();
 
     window.setTimeout(() => {
       const lines = [
@@ -331,6 +378,9 @@ export default function Booking() {
         `Nombre: ${name}`,
         `Teléfono: ${phone}`,
         notes.trim() ? `Observaciones: ${notes.trim()}` : null,
+        result.redeemedWithPoints
+          ? `CANJEÓ CON PUNTOS: ${result.pointsRedeemed} puntos`
+          : null,
       ].filter((line): line is string => Boolean(line));
       const url = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(lines.join("\n"))}`;
       // Si el navegador bloqueó igual la pestaña en blanco (whatsappTab
@@ -448,6 +498,11 @@ export default function Booking() {
                       {myBooking.barberName} · {myBooking.date} · {myBooking.time} ·{" "}
                       {formatPriceNumber(myBooking.totalPrice)}
                     </p>
+                    {myBooking.redeemedWithPoints && (
+                      <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-gold/30 px-3 py-1 text-[10px] uppercase tracking-widest2 text-gold">
+                        <FaExchangeAlt size={9} /> Canjeado con {myBooking.pointsRedeemed} puntos
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-3">
                     <button
@@ -604,7 +659,55 @@ export default function Booking() {
                       Los puntos se acreditan a tu cuenta RED CLUB al completar la cita.
                     </p>
                   )}
+                  {session && selectedServices.length > 1 && (
+                    <p className="mt-1 text-[11px] text-bone/40">
+                      El canje con puntos solo está disponible cuando seleccionas un solo servicio.
+                    </p>
+                  )}
                 </div>
+
+                {isSingleService && redemptionCost > 0 && (
+                  <div className="rounded-sm border border-gold/20 bg-obsidian p-4">
+                    {session ? (
+                      <label className="flex cursor-pointer items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={redeemWithPoints}
+                          disabled={!canRedeem}
+                          onChange={(e) => setRedeemWithPoints(e.target.checked)}
+                          className="mt-1 h-4 w-4 accent-gold disabled:opacity-40"
+                        />
+                        <span className="flex-1">
+                          <span className="flex items-center gap-2 text-sm font-semibold text-ivory">
+                            <FaExchangeAlt className="text-gold" size={12} /> Canjear con puntos
+                          </span>
+                          <span className="mt-1.5 block text-xs text-bone/60">
+                            Precio: <span className="text-bone/80">{formatPriceNumber(totalPrice)}</span>
+                            {" · "}
+                            Valor en puntos: <span className="text-gold">{redemptionCost} puntos</span>
+                            {" · "}
+                            Tus puntos:{" "}
+                            <span className={canRedeem ? "text-gold" : "text-blood"}>{pointsBalance}</span>
+                          </span>
+                          {!canRedeem && (
+                            <span className="mt-1.5 block text-xs text-blood/80">
+                              Te faltan {Math.max(redemptionCost - pointsBalance, 0)} puntos para canjear
+                              este servicio.
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    ) : (
+                      <p className="text-xs text-bone/50">
+                        <Link to="/club/entrar" className="text-gold underline hover:text-gold-light">
+                          Inicia sesión
+                        </Link>{" "}
+                        para poder canjear este servicio con tus puntos RED CLUB (
+                        {redemptionCost} puntos).
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className="mb-2 flex items-center gap-2 text-xs uppercase tracking-widest2 text-gold/80">

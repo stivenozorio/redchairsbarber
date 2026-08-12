@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { FaCalendarAlt, FaClock, FaExclamationTriangle, FaUser } from "react-icons/fa";
+import { FaCalendarAlt, FaClock, FaExchangeAlt, FaExclamationTriangle, FaUser } from "react-icons/fa";
 import type { BookingRow } from "../../types/club";
 import { BARBERS, TIME_SLOTS } from "../../data/booking";
 import { BOOKING_STATUS_CLASS, BOOKING_STATUS_LABEL } from "../../data/bookingStatus";
@@ -78,6 +78,11 @@ export default function BookingCard({
             <span className="flex items-center gap-2">
               <FaUser className="text-gold/70" size={12} /> {barberName(booking.barber_id)}
             </span>
+            {booking.redeemed_with_points && (
+              <span className="flex items-center gap-1.5 text-gold">
+                <FaExchangeAlt size={11} /> Canjeado con {booking.points_redeemed} puntos
+              </span>
+            )}
           </p>
         </div>
         <span

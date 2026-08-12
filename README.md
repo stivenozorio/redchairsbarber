@@ -305,6 +305,102 @@ cita" al final como llamado a la acción. Está enlazada desde
 agregó al menú principal (`NAV_LINKS` en `src/data/site.ts`) para no
 sobrecargarlo — se puede agregar ahí si se quiere más visibilidad.
 
+### Canje de servicios con puntos (Fase 4, ajuste)
+
+Migración `0018_points_redemption.sql`. Un cliente con cuenta y
+suficientes puntos puede pagar **un servicio** con puntos en vez de
+efectivo, directamente desde `/reservar`.
+
+**Tasa de canje: 1 punto = $300 COP**, `piso(precio / 300)` —
+deliberadamente distinta de la tasa con la que se GANAN puntos
+(`piso(precio / 2000)`, la de arriba). `calculateRedemptionCost()` en
+`src/data/services.ts` es la fórmula del lado del cliente (vista
+previa); `redeem_points_for_booking()` en la base es la autoritativa —
+deben coincidir siempre.
+
+**Por qué el canje es de UN solo servicio por reserva.**
+`booking_services` nunca tuvo (ni necesita) un concepto de "método de
+pago por línea" — el precio siempre ha sido de la reserva completa.
+Soportar canjes parciales de una reserva con varios servicios
+requeriría una columna nueva ahí y prorratear el otorgamiento/reembolso
+de puntos por línea, sin que ningún caso de uso real lo pidiera. Si un
+cliente quiere canjear un servicio y pagar otro en efectivo, son dos
+reservas separadas. Por eso, si se seleccionan 2+ servicios en
+`/reservar`, la opción de canje simplemente no aparece (con una nota
+explicando por qué).
+
+**Columnas nuevas en `bookings`:** `redeemed_with_points` (boolean) y
+`points_redeemed` (integer, null si no fue canje) — un `check`
+mantiene la consistencia entre ambas. El **precio original** del
+servicio se sigue guardando tal cual en `total_price_cop`: el canje no
+lo pone en cero, solo cambia cómo se pagó.
+
+**Protección contra doble gasto.** El descuento nunca se calcula en el
+navegador ni se confía en lo que mande — pasa por
+`redeem_points_for_booking()` (función de Postgres, `EXECUTE` revocado
+de `public`, solo `service_role` puede llamarla), que:
+1. Toma un `pg_advisory_xact_lock` por usuario (serializa cualquier
+   llamada concurrente del mismo cliente — un doble clic en "Canjear"
+   hace que la segunda petición espere a la primera).
+2. Recalcula el saldo real (`sum(points_transactions.amount)`) DENTRO
+   de ese bloqueo.
+3. Si alcanza, inserta la fila negativa (motivo `reward_redemption`,
+   ligada al `booking_id`); si no, no inserta nada y devuelve el
+   motivo.
+
+`api/book.ts` la llama justo después de crear la fila en `bookings`
+(reserva en `pending`) y ANTES de tocar Google Calendar. Si el canje
+falla, se descarta la reserva completa (`discardBooking`, el mismo
+mecanismo que ya existía para cuando fallaba Calendar) y se responde
+409 — así nunca queda una reserva marcada como "canjeada" sin que el
+descuento real haya ocurrido.
+
+**Una reserva canjeada, al completarse:**
+- **NO** otorga los puntos normales del servicio (se agregó
+  `and not new.redeemed_with_points` a la condición dentro de
+  `award_points_on_completion()` — un cambio de una línea, el resto de
+  la función es idéntico a la 0017).
+- **SÍ** sigue sumando la visita (`profiles.visit_count`) y por lo
+  tanto sigue contando para el nivel (BLACK/RED/GOLD/LEGEND) — puntos y
+  visitas son conceptos distintos.
+
+**Cancelar una reserva canjeada devuelve los puntos.** Trigger nuevo
+`refund_points_on_cancellation()` (`AFTER UPDATE on bookings`,
+independiente de `bookings_award_points`): se dispara cuando el estado
+pasa a `cancelled` por primera vez en una reserva con
+`redeemed_with_points = true`, e inserta una fila positiva (motivo
+`redemption_refund`, nuevo valor en el enum `points_reason`). Como es
+un trigger de base de datos, cubre los dos caminos de cancelación por
+igual (`/api/cancel.ts`, autoservicio del cliente, y
+`/api/staff/booking-status.ts`, panel admin/barbero) sin duplicar
+lógica en ninguno de los dos archivos de TypeScript. Ambos
+otorgamientos (canje y reembolso) están además protegidos por un
+índice único por `booking_id` — como mucho una vez cada uno, nunca se
+borra ni se modifica una transacción ya existente.
+
+**WhatsApp.** El mensaje de confirmación agrega la línea `CANJEÓ CON
+PUNTOS: N puntos` al final cuando corresponde (`Booking.tsx`), y el
+evento de Google Calendar también queda con esa nota en su descripción
+— para que el barbero sepa de un vistazo que no debe cobrar en
+efectivo.
+
+**"Mi cuenta"** muestra el movimiento del canje en un historial nuevo,
+de solo lectura (`PointsHistory.tsx` + `usePointsHistory.ts`, lee
+`points_transactions` directo — RLS ya limita a las propias filas del
+socio), y las tarjetas de reserva (`BookingCard.tsx`) y el panel
+administrativo/del barbero (`BookingStatusRow.tsx`,
+`BarberProfileModal.tsx`) muestran una insignia "Canjeado con N
+puntos" cuando aplica.
+
+**Límite de estas pruebas.** La suite de tests (`redclub-schema.test.ts`,
+sección "0018") verifica el TEXTO del SQL de la migración — que el
+bloqueo, el recálculo de saldo, las guardas de condición y los índices
+únicos estén presentes y en el orden correcto — no el comportamiento en
+vivo contra una base Postgres real (este entorno no tiene una
+disponible). Antes de dar por buena la protección contra doble gasto en
+producción, correr la migración y probar manualmente el escenario de
+doble clic / dos pestañas con el mismo usuario.
+
 **Si el trigger corrió (`visit_count`/`points_transactions` ya están
 correctos en la base) pero la tarjeta digital no aparece en "Mi
 cuenta"**, casi seguro falta `0014_grant_club_summary_views.sql`: RLS
@@ -773,6 +869,16 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     para que otorgue puntos según el servicio realizado (`piso(precio /
     2000)`, sumado por cada línea de `booking_services`) en vez del monto
     fijo de 10 puntos de la 0013. No toca puntos ni visitas ya otorgados.
+18. `0018_points_redemption.sql` — agrega el canje de UN servicio con
+    puntos (`piso(precio / 300)`, 1 punto = $300 COP): columnas
+    `bookings.redeemed_with_points`/`points_redeemed`, la función
+    atómica `redeem_points_for_booking()` (bloqueo por usuario +
+    recálculo de saldo, protegida contra doble gasto), el trigger nuevo
+    `refund_points_on_cancellation()` (devuelve los puntos si se
+    cancela una reserva canjeada), y un ajuste de una línea en
+    `award_points_on_completion()` para que una reserva canjeada no
+    otorgue además los puntos normales del servicio (pero sí siga
+    sumando la visita). No toca ningún punto ni visita ya otorgados.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

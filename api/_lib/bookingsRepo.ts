@@ -29,6 +29,12 @@ export interface CreateBookingInput {
    * barbero bloquea el horario para un cliente presencial (ver
    * api/staff/block-slot.ts). */
   source?: string;
+  /** Pagada con puntos RED CLUB en vez de efectivo (ver
+   * 0018_points_redemption.sql). El descuento real de puntos pasa
+   * aparte, en redeemPointsForBooking — este campo solo deja la
+   * reserva marcada como tal desde que se crea. */
+  redeemedWithPoints?: boolean;
+  pointsRedeemed?: number;
 }
 
 export interface RepoResult {
@@ -79,6 +85,8 @@ export async function createBookingRecord(input: CreateBookingInput): Promise<Re
         customer_phone: input.customerPhone,
         notes: input.notes?.trim() || null,
         source: input.source ?? "web",
+        redeemed_with_points: input.redeemedWithPoints ?? false,
+        points_redeemed: input.redeemedWithPoints ? input.pointsRedeemed : null,
       })
       .select("id")
       .single();

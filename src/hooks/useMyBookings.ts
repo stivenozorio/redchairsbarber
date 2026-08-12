@@ -44,7 +44,7 @@ export function useMyBookings(userId: string | undefined): UseMyBookingsResult {
       .select(
         "id, user_id, barber_id, status, starts_at, ends_at, total_price_cop, " +
           "total_duration_minutes, customer_name, customer_phone, notes, " +
-          "google_event_id, created_at"
+          "google_event_id, created_at, source, redeemed_with_points, points_redeemed"
       )
       .eq("user_id", userId)
       .order("starts_at", { ascending: false });

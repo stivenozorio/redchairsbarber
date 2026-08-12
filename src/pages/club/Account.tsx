@@ -6,6 +6,7 @@ import BookingCard from "../../components/club/BookingCard";
 import ProfileCard from "../../components/club/ProfileCard";
 import DigitalCard from "../../components/club/DigitalCard";
 import PhonePrompt from "../../components/club/PhonePrompt";
+import PointsHistory from "../../components/club/PointsHistory";
 import { useAuth } from "../../auth/useAuth";
 import { useMyBookings } from "../../hooks/useMyBookings";
 
@@ -34,6 +35,9 @@ export default function Account() {
               </Reveal>
               <Reveal delay={0.05}>
                 <ProfileCard />
+              </Reveal>
+              <Reveal delay={0.08}>
+                <PointsHistory userId={user?.id} />
               </Reveal>
             </div>
 
