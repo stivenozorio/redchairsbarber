@@ -462,6 +462,15 @@ horario por defecto de un barbero nuevo.
   su propio calendario de Google (una variable de entorno más, ver
   arriba) y no lo cubre esta fase.
 
+  **El campo "Orden" de esta pantalla solo ordena esta misma lista**,
+  no el selector de barbero que ve el cliente en `/reservar` ni el del
+  panel del barbero — esos usan el orden fijo en `BARBERS`
+  (`src/data/booking.ts`), no `barbers.sort_order`. Para cambiar el
+  orden en que aparecen en toda la web (no solo aquí), hay que editar
+  ese archivo. Tampoco cambia a quién se le asigna una reserva "Sin
+  preferencia": eso sigue el orden fijo `requestedCandidates` en
+  `api/book.ts` (hoy intenta primero con Camilo).
+
 **Cambiar el estado de una cita a "Completada" ya otorga puntos y suma
 la visita** (Fase 4, migración 0013) — el trigger
 `set_booking_status_timestamps` (migración 0008) sella `completed_at`,

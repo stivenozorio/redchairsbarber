@@ -1,7 +1,11 @@
+// Orden de aparición en los selectores y listas del sitio (reservas,
+// panel del barbero, filtros del admin). Puramente visual: no cambia a
+// quién se le asigna una reserva "Sin preferencia" — eso sigue
+// probando primero con Camilo, ver requestedCandidates en api/book.ts.
 export const BARBERS = [
   { id: "any", name: "Sin preferencia" },
-  { id: "camilo", name: "Camilo Torres" },
   { id: "alejandro", name: "Alejandro Reyes" },
+  { id: "camilo", name: "Camilo Torres" },
 ];
 
 // "7:00 am" / "12:30 pm" — mismo formato que espera parseTimeLabel en

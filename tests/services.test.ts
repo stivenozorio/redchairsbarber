@@ -121,9 +121,16 @@ test("los ids de servicios coinciden con el seed de Supabase", () => {
 });
 
 test("los barberos coinciden con los calendarios configurables", () => {
+  // El orden de BARBERS es puramente visual (qué aparece primero en los
+  // selectores) y puede cambiar; lo que no debe cambiar es el conjunto
+  // de ids disponibles.
   const ids = BARBERS.map((b) => b.id);
-  assert.deepEqual(ids, ["any", "camilo", "alejandro"]);
+  assert.deepEqual(new Set(ids), new Set(["any", "camilo", "alejandro"]));
   assert.equal(BARBERS.find((b) => b.id === "alejandro")?.name, "Alejandro Reyes");
+});
+
+test("BARBERS pone a 'Sin preferencia' primero, seguido de los barberos reales", () => {
+  assert.equal(BARBERS[0].id, "any");
 });
 
 test("las horas candidatas cubren la jornada publicada hoy (10am-8pm)", () => {
