@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { FaBirthdayCake, FaCheck, FaCoins, FaExclamationTriangle, FaPen, FaSpinner } from "react-icons/fa";
+import {
+  FaBirthdayCake,
+  FaCheck,
+  FaCoins,
+  FaExclamationTriangle,
+  FaIdBadge,
+  FaPen,
+  FaSpinner,
+} from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import type { Profile } from "../../types/club";
 import { fieldClass, labelClass } from "../../lib/ui";
 import { formatBirthday, formatShortDate } from "../../lib/format";
 import { TIER_FALLBACK, TIER_TEXT_CLASS } from "../../data/tiers";
+import ClientProfileModal from "../../components/staff/ClientProfileModal";
 
 const RESULT_LIMIT = 200;
 const TODAY = new Date().toISOString().split("T")[0];
@@ -22,9 +31,11 @@ interface ClientWithPoints extends Profile {
 function ClientRow({
   client,
   onSaved,
+  onViewProfile,
 }: {
   client: ClientWithPoints;
   onSaved: (updated: Profile) => void;
+  onViewProfile: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState(client.full_name ?? "");
@@ -121,13 +132,22 @@ function ClientRow({
           </span>
         </p>
       </div>
-      <button
-        type="button"
-        onClick={() => setEditing(true)}
-        className="btn-outline shrink-0 !py-2 !px-5 text-xs"
-      >
-        <FaPen size={11} className="mr-2 inline" /> Editar
-      </button>
+      <div className="flex shrink-0 gap-3">
+        <button
+          type="button"
+          onClick={onViewProfile}
+          className="btn-outline !py-2 !px-5 text-xs"
+        >
+          <FaIdBadge size={11} className="mr-2 inline" /> Ver perfil
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="btn-outline !py-2 !px-5 text-xs"
+        >
+          <FaPen size={11} className="mr-2 inline" /> Editar
+        </button>
+      </div>
     </div>
   );
 }
@@ -137,6 +157,7 @@ export default function AdminClients() {
   const [clients, setClients] = useState<ClientWithPoints[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewingClientId, setViewingClientId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) {
@@ -242,9 +263,20 @@ export default function AdminClients() {
             <p className="text-sm text-bone/70">No hay clientes que coincidan con esta búsqueda.</p>
           </div>
         ) : (
-          clients.map((client) => <ClientRow key={client.id} client={client} onSaved={handleSaved} />)
+          clients.map((client) => (
+            <ClientRow
+              key={client.id}
+              client={client}
+              onSaved={handleSaved}
+              onViewProfile={() => setViewingClientId(client.id)}
+            />
+          ))
         )}
       </div>
+
+      {viewingClientId && (
+        <ClientProfileModal userId={viewingClientId} onClose={() => setViewingClientId(null)} />
+      )}
     </div>
   );
 }

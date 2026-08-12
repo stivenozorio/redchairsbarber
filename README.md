@@ -347,6 +347,27 @@ existe en la base para cuando se construya. Mientras tanto,
 `supabase/verify.sql` (sección 16) lista quién cumple años este mes
 para dar el premio a mano.
 
+### "Ver perfil" de clientes y barberos (Fase 4, ajuste)
+
+Desde el panel administrativo, tanto `/admin/clientes` como
+`/admin/barberos` tienen un botón **"Ver perfil"** por fila:
+
+- **Clientes** — abre `ClientProfileModal.tsx` (el mismo componente que
+  ya se usaba al abrir un cliente desde una reserva): nivel, visitas,
+  **puntos** (badge nuevo en este ajuste — antes el modal no los
+  mostraba, solo la lista de `/admin/clientes` lo hacía) y el historial
+  completo de reservas (próximas y pasadas), vía `useMyBookings`.
+- **Barberos** — abre `BarberProfileModal.tsx` (nuevo,
+  `src/components/admin/`), con el historial de citas que se le
+  asignaron (hasta las últimas 200, más recientes primero) y un resumen
+  rápido de completadas/canceladas/no-asistió. Usa el hook nuevo
+  `useBarberBookingHistory.ts` — mismo patrón de dos consultas que
+  `useMyBookings.ts`, pero filtrando por `barber_id` en vez de
+  `user_id`, y excluyendo los bloqueos de horario (`source = 'blocked'`,
+  ver bloqueo de horas más arriba) porque no son citas reales de un
+  cliente. Un barbero no tiene puntos ni nivel — eso es propio de una
+  cuenta de cliente — así que ese modal no los muestra.
+
 ### Bloquear horarios para clientes presenciales (Fase 4, ajuste)
 
 Un barbero (o un admin, eligiendo el barbero) puede bloquear un

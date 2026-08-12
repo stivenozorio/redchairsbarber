@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { FaCheck, FaExclamationTriangle, FaSpinner } from "react-icons/fa";
+import { FaCheck, FaExclamationTriangle, FaIdBadge, FaSpinner } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import { fieldClass, labelClass } from "../../lib/ui";
+import BarberProfileModal from "../../components/admin/BarberProfileModal";
 
 interface BarberRow {
   id: string;
@@ -10,7 +11,15 @@ interface BarberRow {
   sort_order: number;
 }
 
-function BarberRowItem({ barber, onSaved }: { barber: BarberRow; onSaved: (updated: BarberRow) => void }) {
+function BarberRowItem({
+  barber,
+  onSaved,
+  onViewProfile,
+}: {
+  barber: BarberRow;
+  onSaved: (updated: BarberRow) => void;
+  onViewProfile: () => void;
+}) {
   const [name, setName] = useState(barber.name);
   const [active, setActive] = useState(barber.active);
   const [sortOrder, setSortOrder] = useState(String(barber.sort_order));
@@ -81,7 +90,16 @@ function BarberRowItem({ barber, onSaved }: { barber: BarberRow; onSaved: (updat
           </button>
         </div>
       </div>
-      <p className="mt-3 text-xs text-bone/40">id: {barber.id}</p>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <p className="text-xs text-bone/40">id: {barber.id}</p>
+        <button
+          type="button"
+          onClick={onViewProfile}
+          className="flex shrink-0 items-center gap-1.5 text-xs uppercase tracking-widest2 text-gold/80 transition-colors hover:text-gold"
+        >
+          <FaIdBadge size={11} /> Ver perfil
+        </button>
+      </div>
       {error && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-blood">
           <FaExclamationTriangle size={10} /> {error}
@@ -95,6 +113,7 @@ export default function AdminBarbers() {
   const [barbers, setBarbers] = useState<BarberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewingBarber, setViewingBarber] = useState<BarberRow | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) {
@@ -141,9 +160,24 @@ export default function AdminBarbers() {
         ) : error ? (
           <p className="text-sm text-blood">No se pudieron cargar los barberos: {error}</p>
         ) : (
-          barbers.map((barber) => <BarberRowItem key={barber.id} barber={barber} onSaved={handleSaved} />)
+          barbers.map((barber) => (
+            <BarberRowItem
+              key={barber.id}
+              barber={barber}
+              onSaved={handleSaved}
+              onViewProfile={() => setViewingBarber(barber)}
+            />
+          ))
         )}
       </div>
+
+      {viewingBarber && (
+        <BarberProfileModal
+          barberId={viewingBarber.id}
+          barberName={viewingBarber.name}
+          onClose={() => setViewingBarber(null)}
+        />
+      )}
     </div>
   );
 }

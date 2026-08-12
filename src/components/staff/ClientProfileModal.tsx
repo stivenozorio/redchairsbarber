@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FaBirthdayCake, FaSpinner, FaTimes } from "react-icons/fa";
+import { FaBirthdayCake, FaCoins, FaSpinner, FaTimes } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import type { ClubMemberSummary } from "../../types/club";
 import { useMyBookings } from "../../hooks/useMyBookings";
@@ -103,6 +103,9 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
             </span>
             <span className="rounded-sm border border-gold/20 px-3 py-1">
               {summary.visit_count} visita{summary.visit_count === 1 ? "" : "s"}
+            </span>
+            <span className="flex items-center gap-1.5 rounded-sm border border-gold/20 px-3 py-1 text-gold">
+              <FaCoins size={10} /> {summary.points_balance ?? 0} puntos
             </span>
           </div>
         )}
