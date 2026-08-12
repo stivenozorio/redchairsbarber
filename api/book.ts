@@ -90,18 +90,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new InvalidScheduleInputError("No se reconoció ningún servicio válido.");
     }
 
+    // Reservar exige cuenta: sin esto, distintos intentos de la misma
+    // persona sin sesión no tenían forma de reconocerse entre sí (nada
+    // quedaba guardado que los relacionara), lo que producía reservas
+    // duplicadas para el mismo horario. El frontend ya redirige a
+    // quien no tiene sesión a /club/registro antes de llegar aquí (ver
+    // ProtectedRoute en App.tsx), pero el servidor es quien de verdad
+    // lo exige — nunca hay que confiar solo en que el navegador no deje
+    // llegar la petición.
+    const userId = await getUserIdFromRequest(req);
+    if (!userId) {
+      throw new InvalidScheduleInputError(
+        "Debes iniciar sesión para reservar. Crea tu cuenta gratis en /club/registro."
+      );
+    }
+
     // El canje con puntos solo aplica a una reserva de UN solo servicio:
     // booking_services no tiene (ni necesita) un concepto de "método de
     // pago por línea" — el precio siempre ha sido de la reserva
-    // completa. Requiere cuenta porque los puntos son de un perfil, no
-    // de un invitado. El costo se recalcula aquí con el precio vivo del
+    // completa. El costo se recalcula aquí con el precio vivo del
     // catálogo (no uno que haya mandado el navegador).
-    const userId = await getUserIdFromRequest(req);
     let pointsCost = 0;
     if (redeemWithPoints) {
-      if (!userId) {
-        throw new InvalidScheduleInputError("Debes iniciar sesión para canjear puntos.");
-      }
       if (resolvedServices.length !== 1) {
         throw new InvalidScheduleInputError(
           "El canje con puntos solo está disponible para reservas de un solo servicio."

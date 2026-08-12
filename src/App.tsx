@@ -83,7 +83,6 @@ function App() {
           <Route path="/fidelizacion" element={<Loyalty />} />
           <Route path="/puntos" element={<PointsTable />} />
           <Route path="/nosotros" element={<About />} />
-          <Route path="/reservar" element={<Booking />} />
           <Route path="/contacto" element={<Contact />} />
 
           {/* Autenticación RED CLUB */}
@@ -96,6 +95,15 @@ function App() {
           {/* RED CLUB (requiere sesión) */}
           <Route element={<ProtectedRoute />}>
             <Route path="/club" element={<Account />} />
+          </Route>
+
+          {/* Reservar exige cuenta: evita las reservas duplicadas de
+              gente sin cuenta que no le quedaba nada guardado para
+              reconocer que ya había reservado. Quien no tiene sesión
+              llega directo a crear cuenta, no al login (ver
+              redirectTo en ProtectedRoute). */}
+          <Route element={<ProtectedRoute redirectTo="/club/registro" />}>
+            <Route path="/reservar" element={<Booking />} />
           </Route>
 
           {/* Panel administrativo (requiere sesión + role='admin') */}

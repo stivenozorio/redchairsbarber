@@ -199,10 +199,57 @@ siguientes sin migrar nada.
 ### Principio de degradación
 
 Si las variables de Supabase no están configuradas, **el sitio público
-funciona exactamente igual que antes**: las rutas del club se ocultan,
-`/club` redirige al inicio y reservar sigue funcionando solo contra
-Google Calendar. Supabase es una capa adicional, nunca un requisito
-para reservar.
+funciona exactamente igual que antes**: las rutas del club se ocultan
+y `/club` redirige al inicio.
+
+**Excepción deliberada: `/reservar` sí depende de Supabase.** Hasta un
+ajuste posterior de la Fase 4, reservar sin cuenta funcionaba a
+propósito (ver el historial de este archivo). Eso cambió: **reservar
+ahora exige cuenta** (ver "Reservar exige cuenta" más abajo), así que
+si Supabase no está configurado, nadie puede iniciar sesión ni
+registrarse y por lo tanto tampoco puede reservar. Es una consecuencia
+aceptada del cambio, no un descuido — sin Supabase no existe el
+concepto de "cuenta" del que depende la regla.
+
+### Reservar exige cuenta (Fase 4, ajuste)
+
+Antes, cualquiera podía reservar sin registrarse ("invitado"). Se quitó
+esa opción a propósito: sin una cuenta que relacione los intentos de
+una misma persona, distintas reservas de quien no tenía sesión no
+tenían forma de reconocerse entre sí (nada quedaba guardado en el
+navegador que las relacionara), lo que producía reservas duplicadas
+para el mismo horario.
+
+Se aplica en dos capas, no solo una:
+
+- **Frontend** — `/reservar` está envuelta en `<ProtectedRoute
+  redirectTo="/club/registro" />` (`App.tsx`). Quien no tiene sesión
+  nunca llega a ver el formulario: se le redirige directo a **crear
+  cuenta** (no a iniciar sesión — se asume que quien no tiene sesión
+  probablemente tampoco tiene cuenta que iniciar). `ProtectedRoute`
+  ahora acepta un `redirectTo` opcional (por defecto `/club/entrar`,
+  el de siempre) precisamente para este caso.
+- **Servidor** — `api/book.ts` rechaza la reserva si
+  `getUserIdFromRequest()` no resuelve un usuario válido, sin importar
+  qué haya dejado pasar (o no) el navegador. Es la capa que de verdad
+  importa: la del frontend es solo una mejor experiencia, nunca la
+  única barrera — mismo principio que ya se seguía para el saldo de
+  puntos del canje.
+
+**Vuelta al origen después de registrarse.** `ProtectedRoute` guarda la
+ruta de origen en `location.state.from`, igual que ya hacía para
+`/club/entrar`. `Register.tsx` ahora también lo respeta (antes solo lo
+hacía `Login.tsx`): si alguien llega a `/club/registro` redirigido
+desde `/reservar` y se registra con correo/contraseña, vuelve
+automáticamente a `/reservar` en vez de quedar en "Mi cuenta". Esto
+**no** se replicó en el camino de Google OAuth (`AuthCallback.tsx`) ni
+en el de confirmación por correo: ambos redirigen siempre a `/club`,
+porque la navegación completa hacia Google (o el clic en el enlace del
+correo, en otro momento y quizás otro dispositivo) pierde el
+`location.state` de React Router — conservar el destino ahí requeriría
+persistirlo aparte (p. ej. `localStorage`), que se dejó fuera a
+propósito por ser una pieza nueva de estado para un beneficio menor
+(un clic de más para volver a `/reservar` manualmente).
 
 ### Modelo de datos
 

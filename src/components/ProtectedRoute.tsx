@@ -10,13 +10,19 @@ import { isSupabaseConfigured } from "../lib/supabase";
  * aunque su sesión sea válida.
  *
  * Guarda la ruta de origen para devolver al usuario ahí después de
- * iniciar sesión. */
+ * iniciar sesión (o registrarse — ver redirectTo). */
 export default function ProtectedRoute({
   requireStaff = false,
   requireAdmin = false,
+  redirectTo = "/club/entrar",
 }: {
   requireStaff?: boolean;
   requireAdmin?: boolean;
+  /** A dónde mandar a quien no tiene sesión. Por defecto, login — pero
+   * /reservar usa /club/registro: alguien sin cuenta que llega ahí
+   * probablemente no tenga cuenta que iniciar, así que tiene más
+   * sentido llevarlo directo a crear una. */
+  redirectTo?: string;
 }) {
   const { initializing, isAuthenticated, isStaff, isAdmin, profileLoading } = useAuth();
   const location = useLocation();
@@ -34,7 +40,7 @@ export default function ProtectedRoute({
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/club/entrar" replace state={{ from: location.pathname }} />;
+    return <Navigate to={redirectTo} replace state={{ from: location.pathname }} />;
   }
 
   if (requireAdmin && !isAdmin) {

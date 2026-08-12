@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { FaCheckCircle, FaExclamationTriangle, FaGoogle, FaSpinner } from "react-icons/fa";
 import AuthShell from "../../components/club/AuthShell";
 import { useAuth } from "../../auth/useAuth";
@@ -10,6 +10,11 @@ const MIN_PASSWORD_LENGTH = 6;
 export default function Register() {
   const { signUp, signInWithGoogle, isAuthenticated, initializing } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Si llegó redirigido desde una ruta protegida (p. ej. /reservar
+  // exige cuenta — ver ProtectedRoute), vuelve ahí después de
+  // registrarse en vez de mandarlo siempre a "Mi cuenta".
+  const from = (location.state as { from?: string } | null)?.from ?? "/club";
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -22,7 +27,7 @@ export default function Register() {
   const [confirmationSent, setConfirmationSent] = useState(false);
 
   if (!initializing && isAuthenticated) {
-    return <Navigate to="/club" replace />;
+    return <Navigate to={from} replace />;
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -50,7 +55,7 @@ export default function Register() {
       setConfirmationSent(true);
       return;
     }
-    navigate("/club", { replace: true });
+    navigate(from, { replace: true });
   };
 
   const handleGoogle = async () => {

@@ -73,10 +73,16 @@ test("las reservas guardan la referencia al evento de Google Calendar", () => {
   assert.ok(schema.includes("bookings_google_event_idx"), "debe ser único cuando existe");
 });
 
-test("las reservas de invitados están permitidas (user_id nullable)", () => {
+test("bookings.user_id sigue siendo nullable a nivel de esquema", () => {
+  // api/book.ts (Fase 4, ajuste) ahora RECHAZA una reserva de cliente
+  // sin cuenta a nivel de aplicación — pero la columna en sí se deja
+  // nullable a propósito: otros usos legítimos siguen necesitando
+  // user_id null, como los bloqueos de horario del barbero
+  // (source='blocked', ver api/staff/block-slot.ts), que no son citas
+  // de un cliente. Forzar NOT NULL aquí rompería esos bloqueos.
   assert.ok(
     /user_id\s+uuid references public\.profiles \(id\) on delete set null/.test(schema),
-    "user_id no debe ser NOT NULL: reservar sin cuenta debe seguir funcionando"
+    "user_id no debe ser NOT NULL: otros usos (bloqueos de horario) siguen necesitando null"
   );
 });
 
