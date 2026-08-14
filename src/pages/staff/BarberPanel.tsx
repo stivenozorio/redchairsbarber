@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { FaSpinner } from "react-icons/fa";
+import { FaChevronLeft, FaChevronRight, FaSpinner } from "react-icons/fa";
 import { useAuth } from "../../auth/useAuth";
 import { supabase } from "../../lib/supabase";
 import { BARBERS } from "../../data/booking";
 import { BOOKING_STATUS_LABEL, BOOKING_STATUS_ORDER } from "../../data/bookingStatus";
 import { fieldClass, labelClass } from "../../lib/ui";
-import { todayBogotaRange } from "../../lib/format";
+import { formatLongDate, shiftDateStr, todayBogotaRange } from "../../lib/format";
 import { useStaffBookings } from "../../hooks/useStaffBookings";
 import BookingStatusRow from "../../components/staff/BookingStatusRow";
 import ClientProfileModal from "../../components/staff/ClientProfileModal";
@@ -34,6 +34,10 @@ export default function BarberPanel() {
   const [statusFilter, setStatusFilter] = useState<"all" | BookingStatus>("all");
   const [search, setSearch] = useState("");
   const [clientId, setClientId] = useState<string | null>(null);
+
+  const today = todayBogotaRange().dateStr;
+  const goToPreviousDay = () => setDate((d) => shiftDateStr(d, -1));
+  const goToNextDay = () => setDate((d) => shiftDateStr(d, 1));
 
   useEffect(() => {
     let active = true;
@@ -131,12 +135,44 @@ export default function BarberPanel() {
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
               <div>
                 <label className={labelClass}>Fecha</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className={fieldClass}
-                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={goToPreviousDay}
+                    aria-label="Día anterior"
+                    className="shrink-0 rounded-sm border border-gold/20 p-3 text-bone/70 transition-colors hover:border-gold/50 hover:text-gold"
+                  >
+                    <FaChevronLeft size={12} />
+                  </button>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className={`${fieldClass} flex-1`}
+                  />
+                  <button
+                    type="button"
+                    onClick={goToNextDay}
+                    aria-label="Día siguiente"
+                    className="shrink-0 rounded-sm border border-gold/20 p-3 text-bone/70 transition-colors hover:border-gold/50 hover:text-gold"
+                  >
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <p className="truncate text-xs capitalize text-bone/50">
+                    {formatLongDate(`${date}T00:00:00-05:00`)}
+                  </p>
+                  {date !== today && (
+                    <button
+                      type="button"
+                      onClick={() => setDate(today)}
+                      className="shrink-0 text-xs uppercase tracking-widest2 text-gold/80 underline transition-colors hover:text-gold"
+                    >
+                      Volver a hoy
+                    </button>
+                  )}
+                </div>
               </div>
               {!ownBarberId && (
                 <div>

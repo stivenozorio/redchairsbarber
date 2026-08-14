@@ -59,6 +59,24 @@ export function formatBirthday(dateOnly: string): string {
   return `${day} de ${MONTHS_ES[month - 1]} de ${year}`;
 }
 
+/** Suma (o resta, con un número negativo) días de calendario a una
+ * fecha "YYYY-MM-DD", en hora de Bogotá — para los botones de "día
+ * anterior/siguiente" del panel del barbero. Ancla al mediodía UTC
+ * (no medianoche) antes de sumar: a diferencia de todayBogotaRange,
+ * que solo necesita UN día exacto hacia adelante, este helper debe
+ * seguir dando la fecha correcta sumando o restando muchos días
+ * seguidos sin ir acumulando un corrimiento de zona horaria. */
+export function shiftDateStr(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T12:00:00-05:00`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
 /** Rango de "hoy" en hora de Bogotá (offset fijo -05:00, sin horario de
  * verano — igual que api/_lib/schedule.ts en el servidor). Lo usan el
  * dashboard administrativo y el panel del barbero para acotar la

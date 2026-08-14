@@ -701,6 +701,19 @@ teléfono **no se muestra en este panel** — ver
 ["Privacidad del teléfono frente al barbero"](#privacidad-del-teléfono-frente-al-barbero-fase-4-ajuste)
 más abajo.
 
+**Navegación día por día (Fase 4, ajuste).** El campo "Fecha" siempre
+permitió elegir cualquier día (no solo hoy) — la consulta a Supabase
+(`useStaffBookings`) nunca estuvo limitada a la fecha actual — pero
+hacerlo tocando un calendario nativo cada vez era incómodo para revisar
+rápido "qué tuve ayer" o ir día por día hacia atrás. Se agregaron
+botones **‹ / ›** a los lados del campo (que suman/restan un día con
+`shiftDateStr()`, en `src/lib/format.ts` — ancla a mediodía en hora de
+Bogotá antes de sumar/restar para no depender de la zona horaria del
+navegador de quien lo use), el nombre del día seleccionado en texto
+completo debajo (para confirmar de un vistazo qué día se está viendo),
+y un enlace **"Volver a hoy"** que solo aparece cuando ya no se está en
+el día actual.
+
 **Cómo se sincroniza cada estado con Google Calendar** (Supabase sigue
 siendo la fuente oficial de datos; Calendar es la agenda que usan los
 barberos):
