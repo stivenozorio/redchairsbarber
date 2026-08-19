@@ -149,6 +149,14 @@ function ExceptionForm({ onCreated }: { onCreated: (row: ExceptionRow) => void }
       setError("Elige una fecha.");
       return;
     }
+    if (
+      closed &&
+      !window.confirm(
+        "¿Cerrar ese día? Esto no cancela citas que ya estén agendadas para esa fecha — revísalas aparte en Reservas si es necesario."
+      )
+    ) {
+      return;
+    }
     setSaving(true);
     setError(null);
     const { data, error: insertError } = await supabase

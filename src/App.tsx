@@ -33,6 +33,7 @@ const AdminClients = lazy(() => import("./pages/admin/Clients"));
 const AdminServices = lazy(() => import("./pages/admin/Services"));
 const AdminSchedules = lazy(() => import("./pages/admin/Schedules"));
 const AdminBarbers = lazy(() => import("./pages/admin/Barbers"));
+const AdminStatistics = lazy(() => import("./pages/admin/Statistics"));
 
 // Panel del barbero: mismo criterio, solo lo descarga quien tiene
 // rol barber o admin.
@@ -115,6 +116,7 @@ function App() {
               <Route path="servicios" element={<AdminServices />} />
               <Route path="horarios" element={<AdminSchedules />} />
               <Route path="barberos" element={<AdminBarbers />} />
+              <Route path="estadisticas" element={<AdminStatistics />} />
             </Route>
           </Route>
 

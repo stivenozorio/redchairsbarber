@@ -625,6 +625,27 @@ Incluye:
   solo existía porque hacía falta corregir el dato ya sembrado y el
   horario por defecto de un barbero nuevo, ambos a la vez.
 
+  **Cerrar un día fijo de la semana (ej. domingos) es el checkbox
+  "Abierto" de ese día en el horario semanal de cada barbero** — se
+  guarda de inmediato y aplica todas las semanas hacia adelante, sin
+  fecha límite. Es distinto de una excepción puntual (abajo), que solo
+  cubre una fecha específica. Por defecto el domingo ya sembró cerrado
+  para los barberos existentes; si algún barbero lo tiene abierto, basta
+  con desmarcarlo aquí y guardar.
+
+  **Cerrar un día puntual (incluido HOY mismo) es la sección
+  "Excepciones"**, más abajo en esta misma pantalla — no tiene fecha
+  mínima, se puede elegir cualquier fecha pasada, hoy o futura, y "Toda
+  la barbería" cierra a los dos barberos con un solo registro
+  (`barber_id` nulo). Se aplica de inmediato: tanto `/api/availability`
+  como `/api/book` (que vuelve a validar el horario en el servidor, no
+  solo confía en lo que ya cargó el navegador) dejan de ofrecer y de
+  aceptar horas nuevas ese día en cuanto se guarda. **Importante: cerrar
+  el día no cancela citas que ya estuvieran agendadas para esa fecha
+  antes de crear la excepción** — el formulario ahora lo confirma con
+  un aviso antes de guardar; hay que revisar y cancelar esas citas
+  aparte, desde Reservas, si corresponde.
+
 **Horario publicado hoy: 10:00 a.m. – 9:00 p.m., último cliente a las
 8:30 p.m. (Fase 4, ajuste).** Antes cerraba a las 8:00 p.m., pero con
 el cierre en `20:00` una cita que empezara justo ahí en realidad
@@ -639,6 +660,9 @@ horario por defecto de un barbero nuevo.
   barbero *nuevo de verdad* no se puede hacer solo desde aquí: necesita
   su propio calendario de Google (una variable de entorno más, ver
   arriba) y no lo cubre esta fase.
+- **Estadísticas** (Fase 4, ajuste) — ver
+  ["Estadísticas del club"](#estadísticas-del-club-fase-4-ajuste) más
+  abajo.
 
   **El campo "Orden" de esta pantalla solo ordena esta misma lista**,
   no el selector de barbero que ve el cliente en `/reservar` ni el del
@@ -735,6 +759,43 @@ manualmente"). `supabase/verify.sql` (sección 14) lista las
 cancelaciones pendientes de corregir a mano; un futuro panel
 administrativo podrá leer esa misma tabla para mostrarlas y
 resolverlas sin depender del SQL Editor.
+
+**Navegación día por día (Fase 4, ajuste).** El campo "Fecha" siempre
+permitió elegir cualquier día (no solo hoy) — la consulta a Supabase
+(`useStaffBookings`) nunca estuvo limitada a la fecha actual — pero
+hacerlo tocando un calendario nativo cada vez era incómodo para revisar
+rápido "qué tuve ayer" o ir día por día hacia atrás. Se agregaron
+botones **‹ / ›** a los lados del campo (que suman/restan un día con
+`shiftDateStr()`, en `src/lib/format.ts` — ancla a mediodía en hora de
+Bogotá antes de sumar/restar para no depender de la zona horaria del
+navegador de quien lo use), el nombre del día seleccionado en texto
+completo debajo (para confirmar de un vistazo qué día se está viendo),
+y un enlace **"Volver a hoy"** que solo aparece cuando ya no se está en
+el día actual.
+
+### Estadísticas del club (Fase 4, ajuste)
+
+`/admin/estadisticas` — resumen del club de un vistazo, separado de
+`/admin/clientes` (que es para buscar y editar UNA persona):
+
+- **Socios registrados / nuevos esta semana / nuevos este mes** —
+  cuenta cuentas con `role = 'client'` en `profiles`, filtradas por
+  `created_at` (los conteos usan `count: 'exact', head: true`, no traen
+  filas, para no cargar toda la tabla solo por un número). Las cuentas
+  de barbero/admin no se cuentan como socios.
+- **Top puntos** — los 10 balances más altos de `club_member_summary`,
+  con su nivel actual.
+- **Cerca de poder canjear** — socios con puntos entre 1 y el costo del
+  servicio canjeable más económico (hoy 16 puntos: Cejas o Lavado
+  Capilar a $5.000, con la tasa de canje de
+  ["Canje de servicios con puntos"](#canje-de-servicios-con-puntos-fase-4-ajuste)),
+  ordenados de más cerca a menos — el umbral se calcula del mismo
+  catálogo que usa la reserva, no es un número fijo en la pantalla.
+
+Ninguna de las dos listas filtra por rol (solo los conteos de arriba lo
+hacen): en la práctica solo quien reserva como cliente acumula puntos,
+así que agregar ese filtro exigiría traer todos los ids de clientes
+aparte solo para cruzarlos, sin beneficio real hoy.
 
 ### Privacidad del teléfono frente al barbero (Fase 4, ajuste)
 

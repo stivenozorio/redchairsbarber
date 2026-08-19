@@ -7,6 +7,7 @@ const TABS = [
   { to: "/admin/servicios", label: "Servicios" },
   { to: "/admin/horarios", label: "Horarios" },
   { to: "/admin/barberos", label: "Barberos" },
+  { to: "/admin/estadisticas", label: "Estadísticas" },
 ];
 
 export default function AdminLayout() {
