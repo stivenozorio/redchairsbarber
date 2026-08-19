@@ -760,19 +760,6 @@ cancelaciones pendientes de corregir a mano; un futuro panel
 administrativo podrá leer esa misma tabla para mostrarlas y
 resolverlas sin depender del SQL Editor.
 
-**Navegación día por día (Fase 4, ajuste).** El campo "Fecha" siempre
-permitió elegir cualquier día (no solo hoy) — la consulta a Supabase
-(`useStaffBookings`) nunca estuvo limitada a la fecha actual — pero
-hacerlo tocando un calendario nativo cada vez era incómodo para revisar
-rápido "qué tuve ayer" o ir día por día hacia atrás. Se agregaron
-botones **‹ / ›** a los lados del campo (que suman/restan un día con
-`shiftDateStr()`, en `src/lib/format.ts` — ancla a mediodía en hora de
-Bogotá antes de sumar/restar para no depender de la zona horaria del
-navegador de quien lo use), el nombre del día seleccionado en texto
-completo debajo (para confirmar de un vistazo qué día se está viendo),
-y un enlace **"Volver a hoy"** que solo aparece cuando ya no se está en
-el día actual.
-
 ### Estadísticas del club (Fase 4, ajuste)
 
 `/admin/estadisticas` — resumen del club de un vistazo, separado de
