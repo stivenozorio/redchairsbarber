@@ -1005,6 +1005,22 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     otorgue además los puntos normales del servicio (pero sí siga
     sumando la visita). Ninguna de las dos toca ningún punto ni visita
     ya otorgados.
+20. `0020_grant_schedule_service_role.sql` — corrige otro permiso, mismo
+    bug que 0007/0014 pero en `barber_schedules`/`schedule_exceptions`:
+    la 0010 les dio `GRANT SELECT` a `anon`/`authenticated` pero nunca a
+    `service_role`, el rol que de verdad usa el servidor. Sin esto,
+    **toda consulta desde `api/_lib/scheduleRepo.ts` fallaba con
+    `permission denied for table barber_schedules`** y
+    `getEffectiveHours()` caía siempre al horario fijo de respaldo
+    (10am–9pm, TODOS los días, incluido domingo) sin importar lo que
+    dijera el horario configurado — y `api/staff/day-off.ts`
+    ("Bloquear un día completo") tampoco podía escribir en
+    `schedule_exceptions`. Se detectó porque cerrar el domingo desde
+    `/admin/horarios` no tenía ningún efecto real en `/reservar` a pesar
+    de que la fila en la base ya estaba correcta. `EXPECTED_TABLES` en
+    `api/health.ts` ahora incluye estas dos tablas para que un futuro
+    permiso faltante aparezca ahí directamente, sin tener que llegar a
+    este punto de nuevo.
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

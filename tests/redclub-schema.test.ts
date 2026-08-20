@@ -29,6 +29,7 @@ const extendClosingHour = readMigration("0016_extend_closing_hour.sql");
 const pointsPerService = readMigration("0017_points_per_service.sql");
 const pointsRedemptionEnum = readMigration("0018_points_redemption.sql");
 const pointsRedemption = readMigration("0019_points_redeem_functions.sql");
+const scheduleServiceRoleGrant = readMigration("0020_grant_schedule_service_role.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -759,4 +760,70 @@ test("0019 no toca puntos históricos: no borra ni actualiza filas existentes de
     "no debe modificar transacciones de puntos ya existentes — solo inserta filas nuevas hacia adelante"
   );
   assert.ok(pointsRedemption.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (ajuste): 0020 permiso faltante sobre horarios/excepciones ---
+//
+// Mismo bug que 0007/0014 (RLS con `using (true)` no basta sin el
+// GRANT de tabla) pero en barber_schedules/schedule_exceptions: 0010
+// les dio SELECT a anon/authenticated y se le olvidó service_role, el
+// rol que de verdad usa el servidor. Confirmado en producción con
+// /api/schedule-debug: toda consulta desde getEffectiveHours() fallaba
+// con "permission denied for table barber_schedules", así que SIEMPRE
+// caía al horario fijo de respaldo (abierto 10am-9pm todos los días)
+// sin importar lo que dijera el horario configurado.
+
+test("0020 concede select/insert/update/delete a service_role sobre horarios y excepciones", () => {
+  assert.match(
+    scheduleServiceRoleGrant,
+    /grant select, insert, update, delete on\s*\n\s*public\.barber_schedules,\s*\n\s*public\.schedule_exceptions\s*\nto service_role/
+  );
+});
+
+test("0020 no borra nada y refresca el cache de PostgREST", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b/i.test(scheduleServiceRoleGrant),
+    "no debe borrar datos existentes"
+  );
+  assert.ok(scheduleServiceRoleGrant.includes("notify pgrst, 'reload schema'"));
+});
+
+// Prueba de regresión: toda tabla con RLS pública (`using (true)`) debe
+// tener también un GRANT explícito a service_role — si no, el servidor
+// (que sí necesita leerla) queda bloqueado en silencio. Esto ya pasó
+// tres veces (0007 tablas base, 0014 vistas, 0020 horarios); si se
+// agrega una tabla nueva con este mismo patrón de RLS y se olvida el
+// GRANT, esta prueba debe fallar en vez de descubrirse en producción.
+test("toda tabla con política RLS 'using (true)' tiene GRANT a service_role en alguna migración", () => {
+  const migrationsDir = fileURLToPath(new URL("../supabase/migrations/", import.meta.url));
+  const allMigrationsSql = readdirSync(migrationsDir)
+    .filter((f) => f.endsWith(".sql"))
+    .map((f) => readFileSync(`${migrationsDir}${f}`, "utf8"))
+    .join("\n");
+
+  const publicReadTables = [
+    ...allMigrationsSql.matchAll(
+      /create policy \S+ on public\.(\w+)\s*\n\s*for select using \(true\)/g
+    ),
+  ].map((m) => m[1]);
+
+  assert.ok(publicReadTables.length > 0, "la regex no encontró ninguna tabla — revisa el patrón");
+
+  // Cada sentencia GRANT completa (puede listar varias tablas antes del
+  // "to"), no una ventana fija de caracteres — una lista larga de
+  // tablas (como en 0003/0007) fácilmente supera cualquier ventana
+  // corta y da un falso negativo.
+  const grantStatements = allMigrationsSql.match(/grant\s+[\s\S]*?;/g) ?? [];
+  const tablesGrantedToServiceRole = new Set(
+    grantStatements
+      .filter((stmt) => /\bservice_role\b/.test(stmt))
+      .flatMap((stmt) => [...stmt.matchAll(/public\.(\w+)/g)].map((m) => m[1]))
+  );
+
+  for (const table of publicReadTables) {
+    assert.ok(
+      tablesGrantedToServiceRole.has(table),
+      `${table} tiene RLS pública pero ningún GRANT a service_role`
+    );
+  }
 });

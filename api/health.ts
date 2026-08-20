@@ -17,6 +17,8 @@ const EXPECTED_TABLES = [
   "services",
   "tiers",
   "barbers",
+  "barber_schedules",
+  "schedule_exceptions",
   "memberships",
   "referrals",
   "rewards",
