@@ -30,6 +30,7 @@ const pointsPerService = readMigration("0017_points_per_service.sql");
 const pointsRedemptionEnum = readMigration("0018_points_redemption.sql");
 const pointsRedemption = readMigration("0019_points_redeem_functions.sql");
 const scheduleServiceRoleGrant = readMigration("0020_grant_schedule_service_role.sql");
+const adminRedeemPoints = readMigration("0021_admin_redeem_points.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -826,4 +827,68 @@ test("toda tabla con política RLS 'using (true)' tiene GRANT a service_role en 
       `${table} tiene RLS pública pero ningún GRANT a service_role`
     );
   }
+});
+
+// --- Fase 4 (ajuste): 0021 canje de puntos presencial (admin) ---
+
+test("0021 define admin_redeem_points con la firma esperada", () => {
+  assert.match(
+    adminRedeemPoints,
+    /create or replace function public\.admin_redeem_points\(\s*\n\s*p_admin_id uuid,\s*\n\s*p_user_id uuid,\s*\n\s*p_points integer,\s*\n\s*p_description text\s*\n\)/
+  );
+});
+
+test("0021 rechaza un costo en puntos que no sea mayor a cero", () => {
+  const fnStart = adminRedeemPoints.indexOf("create or replace function public.admin_redeem_points");
+  const fnEnd = adminRedeemPoints.indexOf("$$;", fnStart);
+  const fnBody = adminRedeemPoints.slice(fnStart, fnEnd);
+  assert.match(fnBody, /if p_points is null or p_points <= 0 then/);
+});
+
+test("0021 bloquea por usuario ANTES de leer el saldo (protección contra doble descuento)", () => {
+  const fnStart = adminRedeemPoints.indexOf("create or replace function public.admin_redeem_points");
+  const fnEnd = adminRedeemPoints.indexOf("$$;", fnStart);
+  const fnBody = adminRedeemPoints.slice(fnStart, fnEnd);
+  const lockPos = fnBody.indexOf("pg_advisory_xact_lock");
+  const balancePos = fnBody.indexOf("coalesce(sum(amount)");
+  assert.ok(lockPos > 0 && balancePos > 0, "debe tener tanto el bloqueo como el cálculo de saldo");
+  assert.ok(lockPos < balancePos, "el bloqueo debe ir antes de calcular el saldo, no después");
+});
+
+test("0021 rechaza el canje si el saldo real es insuficiente", () => {
+  const fnStart = adminRedeemPoints.indexOf("create or replace function public.admin_redeem_points");
+  const fnEnd = adminRedeemPoints.indexOf("$$;", fnStart);
+  const fnBody = adminRedeemPoints.slice(fnStart, fnEnd);
+  assert.match(fnBody, /if v_balance < p_points then/);
+  assert.match(fnBody, /'Saldo de puntos insuficiente\.'/);
+});
+
+test("0021 inserta el descuento con reason 'reward_redemption', sin booking_id, y con created_by = p_admin_id", () => {
+  const fnStart = adminRedeemPoints.indexOf("create or replace function public.admin_redeem_points");
+  const fnEnd = adminRedeemPoints.indexOf("$$;", fnStart);
+  const fnBody = adminRedeemPoints.slice(fnStart, fnEnd);
+  assert.match(
+    fnBody,
+    /insert into public\.points_transactions \(user_id, amount, reason, description, booking_id, created_by\)/
+  );
+  assert.match(fnBody, /values \(p_user_id, -p_points, 'reward_redemption', p_description, null, p_admin_id\)/);
+});
+
+test("0021 revoca EXECUTE de public y solo lo concede a service_role", () => {
+  assert.match(
+    adminRedeemPoints,
+    /revoke all on function public\.admin_redeem_points\(uuid, uuid, integer, text\) from public/
+  );
+  assert.match(
+    adminRedeemPoints,
+    /grant execute on function public\.admin_redeem_points\(uuid, uuid, integer, text\) to service_role/
+  );
+});
+
+test("0021 no toca puntos históricos: no borra ni actualiza filas existentes", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b|\bupdate public\.points_transactions\b/i.test(adminRedeemPoints),
+    "no debe modificar transacciones de puntos ya existentes — solo inserta filas nuevas hacia adelante"
+  );
+  assert.ok(adminRedeemPoints.includes("notify pgrst, 'reload schema'"));
 });

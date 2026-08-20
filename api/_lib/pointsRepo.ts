@@ -57,3 +57,49 @@ export async function redeemPointsForBooking(
     return { ok: false, newBalance: null, error: "No se pudo procesar el canje de puntos." };
   }
 }
+
+/**
+ * Descuenta puntos por un canje PRESENCIAL (el cliente pagó en la
+ * barbería, no por /reservar) — lo inicia un administrador desde
+ * `/admin/clientes`, no está atado a ninguna reserva de Supabase. Mismo
+ * blindaje contra doble descuento que `redeemPointsForBooking`: llama a
+ * `admin_redeem_points()` (migración 0021_admin_redeem_points.sql), que
+ * recalcula el saldo real dentro de un bloqueo por usuario.
+ */
+export async function adminRedeemPoints(
+  adminId: string,
+  userId: string,
+  points: number,
+  description: string
+): Promise<RedeemPointsResult> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return { ok: false, newBalance: null, error: "Supabase no está configurado." };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .rpc("admin_redeem_points", {
+        p_admin_id: adminId,
+        p_user_id: userId,
+        p_points: points,
+        p_description: description,
+      })
+      .single();
+
+    if (error) {
+      console.error("Error inesperado en canje presencial de puntos:", error);
+      return { ok: false, newBalance: null, error: "No se pudo procesar el canje de puntos." };
+    }
+
+    const result = data as { success: boolean; new_balance: number | null; error_message: string | null };
+    return {
+      ok: result.success,
+      newBalance: result.new_balance,
+      error: result.success ? null : (result.error_message ?? "Saldo de puntos insuficiente."),
+    };
+  } catch (error) {
+    console.error("Error inesperado en canje presencial de puntos:", error);
+    return { ok: false, newBalance: null, error: "No se pudo procesar el canje de puntos." };
+  }
+}

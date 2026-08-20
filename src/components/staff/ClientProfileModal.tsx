@@ -1,11 +1,20 @@
-import { useEffect, useState } from "react";
-import { FaBirthdayCake, FaCoins, FaSpinner, FaTimes } from "react-icons/fa";
+import { useEffect, useMemo, useState } from "react";
+import { FaBirthdayCake, FaCoins, FaExchangeAlt, FaExclamationTriangle, FaSpinner, FaTimes } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import type { ClubMemberSummary } from "../../types/club";
 import { useMyBookings } from "../../hooks/useMyBookings";
 import { useAuth } from "../../auth/useAuth";
+import { useServiceOverrides } from "../../hooks/useServiceOverrides";
+import { useAdminRedeemPoints } from "../../hooks/useAdminRedeemPoints";
 import { BOOKING_STATUS_LABEL } from "../../data/bookingStatus";
 import { formatBirthday, formatShortDate, formatTime } from "../../lib/format";
+import { fieldClass, labelClass } from "../../lib/ui";
+import {
+  ALL_BOOKABLE_SERVICES,
+  applyLiveOverrides,
+  calculateRedemptionCost,
+  parsePriceToNumber,
+} from "../../data/services";
 
 // Tipado explícito a `string` (no el tipo literal que infiere `const`):
 // supabase-js intenta parsear un `select()` literal para tipar la
@@ -27,6 +36,42 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const { upcoming, past, loading: loadingBookings, error: bookingsError } = useMyBookings(userId);
+
+  // Canje de puntos presencial (solo admin) — ver "Estadísticas del
+  // club"/services.ts para la misma tasa (piso(precio / 300)) que usa
+  // el canje en línea.
+  const overrides = useServiceOverrides();
+  const liveServices = useMemo(() => applyLiveOverrides(ALL_BOOKABLE_SERVICES, overrides), [overrides]);
+  const { redeem, saving: redeeming } = useAdminRedeemPoints();
+  const [redeemServiceId, setRedeemServiceId] = useState("");
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
+
+  const redeemService = liveServices.find((s) => s.id === redeemServiceId) ?? null;
+  const redeemCost = redeemService ? calculateRedemptionCost(parsePriceToNumber(redeemService.price)) : 0;
+  const pointsBalance = summary?.points_balance ?? 0;
+  const canRedeem = Boolean(redeemService) && redeemCost > 0 && pointsBalance >= redeemCost;
+
+  const handleRedeem = async () => {
+    if (!redeemService || !canRedeem) return;
+    if (
+      !window.confirm(
+        `¿Descontar ${redeemCost} puntos por "${redeemService.name}"? Esto no se puede deshacer.`
+      )
+    ) {
+      return;
+    }
+    setRedeemError(null);
+    setRedeemSuccess(null);
+    const result = await redeem(userId, redeemCost, redeemService.name);
+    if (!result.ok) {
+      setRedeemError(result.error ?? "No se pudo registrar el canje.");
+      return;
+    }
+    setSummary((prev) => (prev ? { ...prev, points_balance: result.newBalance ?? pointsBalance - redeemCost } : prev));
+    setRedeemSuccess(`Se descontaron ${redeemCost} puntos por "${redeemService.name}".`);
+    setRedeemServiceId("");
+  };
 
   useEffect(() => {
     let active = true;
@@ -107,6 +152,56 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
             <span className="flex items-center gap-1.5 rounded-sm border border-gold/20 px-3 py-1 text-gold">
               <FaCoins size={10} /> {summary.points_balance ?? 0} puntos
             </span>
+          </div>
+        )}
+
+        {isAdmin && summary && (
+          <div className="mt-6 border-t border-gold/10 pt-4">
+            <p className="eyebrow justify-start before:hidden">Canjear puntos presencial</p>
+            <p className="mt-3 text-xs text-bone/50">
+              Para cuando el cliente paga con puntos en la barbería, sin pasar por /reservar.
+            </p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <label className={labelClass}>Servicio canjeado</label>
+                <select
+                  value={redeemServiceId}
+                  onChange={(e) => {
+                    setRedeemServiceId(e.target.value);
+                    setRedeemError(null);
+                    setRedeemSuccess(null);
+                  }}
+                  className={fieldClass}
+                >
+                  <option value="">Selecciona...</option>
+                  {liveServices.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {s.price}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                disabled={!canRedeem || redeeming}
+                onClick={() => void handleRedeem()}
+                className="btn-gold shrink-0 !py-3 text-xs disabled:opacity-40"
+              >
+                {redeeming ? <FaSpinner className="animate-spin" /> : <FaExchangeAlt size={12} />}
+                <span className="ml-2">Descontar {redeemCost > 0 ? `${redeemCost} pts` : "puntos"}</span>
+              </button>
+            </div>
+            {redeemService && redeemCost > pointsBalance && (
+              <p className="mt-2 text-xs text-blood">
+                El cliente solo tiene {pointsBalance} puntos — le faltan {redeemCost - pointsBalance}.
+              </p>
+            )}
+            {redeemError && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-blood">
+                <FaExclamationTriangle size={10} /> {redeemError}
+              </p>
+            )}
+            {redeemSuccess && <p className="mt-2 text-xs text-gold">{redeemSuccess}</p>}
           </div>
         )}
 

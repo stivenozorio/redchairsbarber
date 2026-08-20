@@ -481,6 +481,40 @@ en esta fase — y no se renderiza si Supabase no está configurado o el
 socio todavía no tiene resumen, siguiendo el mismo principio de
 degradación del resto del sitio.
 
+### Canje de puntos presencial (Fase 4, ajuste)
+
+Migración `0021_admin_redeem_points.sql`. Para cuando un cliente llega
+a la barbería y pide pagar con puntos ahí mismo, en vez de reservar por
+`/reservar` — el canje en línea (arriba) exige crear una reserva desde
+la web, así que no cubre este caso.
+
+**Solo un administrador puede registrarlo** (no un barbero: dejar que
+cualquiera descuente puntos de un cliente sin más control abre la
+puerta a errores o abuso difíciles de auditar), desde la ficha del
+cliente (botón "Ver perfil"/"Ver cliente" en `/admin/clientes`, el
+panel administrativo o el panel del barbero — el formulario de canje en
+sí solo aparece si quien lo abre es admin). Se elige el **servicio** del
+catálogo vivo (mismo que usa `/reservar`, con precios actualizados
+desde `/admin/servicios`); el costo en puntos se calcula automático con
+la misma tasa que el canje en línea (`calculateRedemptionCost`, piso(precio
+/ 300)) — no se puede escribir un monto libre, para que la tasa sea
+siempre consistente y no dependa de que el admin haga la cuenta a mano.
+
+Backend: `POST /api/staff/redeem-points` → `admin_redeem_points()`
+(mismo blindaje contra doble descuento que `redeem_points_for_booking`
+de la 0019: bloqueo por usuario con `pg_advisory_xact_lock`, saldo
+recalculado DENTRO del bloqueo, nunca confía en el saldo que ya cargó
+el navegador). La fila que queda en `points_transactions` usa el mismo
+motivo `'reward_redemption'` que un canje en línea (así aparece igual
+en el historial de puntos del cliente, "Canje de puntos"), pero con
+`booking_id` **null** y `created_by` = el admin que lo registró —
+`supabase/verify.sql` (sección 21) los distingue por eso exactamente.
+
+**No cancela ni crea ninguna reserva ni evento de Google Calendar** — es
+puramente un movimiento en el ledger de puntos, igual que otorgarlos:
+lo único que hace es descontar el saldo del cliente y dejar constancia
+de qué se le entregó a cambio.
+
 ### Cumpleaños del socio (Fase 4, ajuste)
 
 `profiles.birthday` existía desde la Fase 1 (pensado para el motivo
@@ -1021,6 +1055,12 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     `api/health.ts` ahora incluye estas dos tablas para que un futuro
     permiso faltante aparezca ahí directamente, sin tener que llegar a
     este punto de nuevo.
+21. `0021_admin_redeem_points.sql` — canje de puntos presencial: función
+    `admin_redeem_points()`, mismo blindaje contra doble descuento que
+    `redeem_points_for_booking()` (0019) pero sin atarse a ninguna
+    reserva, para cuando un cliente paga con puntos directo en la
+    barbería. Solo un administrador puede llamarla (ver
+    ["Canje de puntos presencial"](#canje-de-puntos-presencial-fase-4-ajuste)).
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

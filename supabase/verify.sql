@@ -330,3 +330,25 @@ where b.redeemed_with_points
     select 1 from public.points_transactions pt
     where pt.booking_id = b.id and pt.reason = 'booking_attended'
   );
+
+-- 21. Canje de puntos presencial (Fase 4, ajuste) -----------------------
+
+-- 21a. Función nueva debe existir.
+select
+  case when exists (
+    select 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'admin_redeem_points'
+  ) then '✅ OK' else '❌ FALTA — ejecuta 0021 (ver sección 21)' end as funcion_admin_redeem_points;
+
+-- 21b. Canjes presenciales recientes: se distinguen de los canjes en
+-- línea (0019) porque booking_id es null y created_by trae al admin
+-- que lo registró.
+select
+  pt.id, pt.user_id, p.full_name as admin, -pt.amount as puntos_descontados,
+  pt.description, pt.created_at
+from public.points_transactions pt
+left join public.profiles p on p.id = pt.created_by
+where pt.reason = 'reward_redemption' and pt.booking_id is null
+order by pt.created_at desc
+limit 50;
