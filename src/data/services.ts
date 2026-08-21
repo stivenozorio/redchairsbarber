@@ -229,7 +229,7 @@ export function calculatePoints(priceCop: number): number {
  * 0019_points_redeem_functions.sql): piso(precio / 300). El resto de valor
  * que se pierde al redondear hacia abajo queda como beneficio para el
  * cliente, a propósito — nunca se usa ceil() ni redondeo al más cercano. */
-const COP_PER_REDEMPTION_POINT = 300;
+export const COP_PER_REDEMPTION_POINT = 300;
 
 /** Puntos que cuesta canjear (pagar con puntos) un servicio de este
  * precio. Ver COP_PER_REDEMPTION_POINT. */

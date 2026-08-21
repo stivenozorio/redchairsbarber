@@ -812,8 +812,20 @@ resolverlas sin depender del SQL Editor.
   ["Canje de servicios con puntos"](#canje-de-servicios-con-puntos-fase-4-ajuste)),
   ordenados de más cerca a menos — el umbral se calcula del mismo
   catálogo que usa la reserva, no es un número fijo en la pantalla.
+- **Valor en pesos de los puntos** — dos números, a la tasa de canje (1
+  punto = $300 COP, `COP_PER_REDEMPTION_POINT` en `services.ts`):
+  **ya canjeado** (suma de todos los movimientos con
+  `reason = 'reward_redemption'`, en línea o presencial — plata que ya
+  se le devolvió al cliente) y **pendiente por canjear** (suma de
+  *todos* los movimientos de `points_transactions`, positivos y
+  negativos — el saldo total de todos los socios juntos, lo que
+  costaría si todos canjearan hoy mismo). Se calcula trayendo
+  `amount, reason` de toda la tabla y sumando en el navegador — si el
+  club llega a acumular muchísimos movimientos, este cálculo debería
+  moverse a una vista o función en la base en vez de traer todas las
+  filas.
 
-Ninguna de las dos listas filtra por rol (solo los conteos de arriba lo
+Ninguna de las dos listas de puntos (top / cerca de canjear) filtra por rol (solo los conteos de arriba lo
 hacen): en la práctica solo quien reserva como cliente acumula puntos,
 así que agregar ese filtro exigiría traer todos los ids de clientes
 aparte solo para cruzarlos, sin beneficio real hoy.

@@ -9,8 +9,13 @@ import {
   FaUsers,
 } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
-import { shiftDateStr, todayBogotaRange } from "../../lib/format";
-import { ALL_BOOKABLE_SERVICES, calculateRedemptionCost, parsePriceToNumber } from "../../data/services";
+import { formatCop, shiftDateStr, todayBogotaRange } from "../../lib/format";
+import {
+  ALL_BOOKABLE_SERVICES,
+  calculateRedemptionCost,
+  COP_PER_REDEMPTION_POINT,
+  parsePriceToNumber,
+} from "../../data/services";
 
 /** Costo en puntos del servicio canjeable más económico — el umbral que
  * usa "Cerca de poder canjear" abajo. Se deriva del mismo catálogo que
@@ -34,6 +39,16 @@ interface Counts {
   newMonth: number;
 }
 
+interface PointsValue {
+  /** Suma de TODOS los movimientos (positivos y negativos) — el saldo
+   * total pendiente de todos los socios, en puntos y en pesos: lo que
+   * costaría si todos canjearan hoy mismo. */
+  pendingPoints: number;
+  /** Suma de los canjes ya hechos (reason = 'reward_redemption',
+   * montos negativos) — plata que ya se le "devolvió" al cliente. */
+  redeemedPoints: number;
+}
+
 /** Estadísticas del club: registros y puntos. Deliberadamente separado
  * de /admin/clientes (que es para buscar y editar UNA persona) — esto
  * es para ver el estado general de un vistazo. Los conteos de registro
@@ -47,6 +62,7 @@ export default function AdminStatistics() {
   const [counts, setCounts] = useState<Counts | null>(null);
   const [topPoints, setTopPoints] = useState<MemberPointsRow[]>([]);
   const [closeToRedeem, setCloseToRedeem] = useState<MemberPointsRow[]>([]);
+  const [pointsValue, setPointsValue] = useState<PointsValue | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +78,7 @@ export default function AdminStatistics() {
     const weekAgoISO = `${shiftDateStr(today, -7)}T00:00:00-05:00`;
     const monthStartISO = `${today.slice(0, 7)}-01T00:00:00-05:00`;
 
-    const [totalRes, weekRes, monthRes, topRes, nearRes] = await Promise.all([
+    const [totalRes, weekRes, monthRes, topRes, nearRes, ledgerRes] = await Promise.all([
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "client"),
       supabase
         .from("profiles")
@@ -86,6 +102,11 @@ export default function AdminStatistics() {
         .lt("points_balance", MIN_REDEMPTION_COST)
         .order("points_balance", { ascending: false })
         .limit(10),
+      // Todo el libro mayor de puntos, para sumar el saldo pendiente y lo
+      // ya canjeado — no hay (todavía) tantos movimientos como para que
+      // esto no quepa en una sola consulta; si el club crece mucho, este
+      // cálculo debería moverse a una vista/función en la base.
+      supabase.from("points_transactions").select("amount, reason").limit(50000),
     ]);
 
     const firstError =
@@ -94,6 +115,7 @@ export default function AdminStatistics() {
       monthRes.error?.message ??
       topRes.error?.message ??
       nearRes.error?.message ??
+      ledgerRes.error?.message ??
       null;
     if (firstError) setError(firstError);
 
@@ -104,6 +126,14 @@ export default function AdminStatistics() {
     });
     setTopPoints((topRes.data as MemberPointsRow[]) ?? []);
     setCloseToRedeem((nearRes.data as MemberPointsRow[]) ?? []);
+
+    const ledger = (ledgerRes.data as { amount: number; reason: string }[]) ?? [];
+    setPointsValue({
+      pendingPoints: ledger.reduce((sum, row) => sum + row.amount, 0),
+      redeemedPoints: ledger
+        .filter((row) => row.reason === "reward_redemption")
+        .reduce((sum, row) => sum - row.amount, 0),
+    });
     setLoading(false);
   }, []);
 
@@ -141,6 +171,31 @@ export default function AdminStatistics() {
             <p className="mt-2 text-xs uppercase tracking-widest2 text-bone/60">{tile.label}</p>
           </div>
         ))}
+      </div>
+
+      <div className="mt-12">
+        <p className="eyebrow justify-start before:hidden">Valor en pesos de los puntos</p>
+        <p className="mt-3 text-xs text-bone/50">
+          A la tasa de canje de 1 punto = {formatCop(COP_PER_REDEMPTION_POINT)} COP.
+        </p>
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="card-lux text-center">
+            <p className="font-display text-3xl text-gold">
+              {formatCop((pointsValue?.redeemedPoints ?? 0) * COP_PER_REDEMPTION_POINT)}
+            </p>
+            <p className="mt-2 text-xs uppercase tracking-widest2 text-bone/60">
+              Ya canjeado ({pointsValue?.redeemedPoints ?? 0} pts)
+            </p>
+          </div>
+          <div className="card-lux text-center">
+            <p className="font-display text-3xl text-gold">
+              {formatCop((pointsValue?.pendingPoints ?? 0) * COP_PER_REDEMPTION_POINT)}
+            </p>
+            <p className="mt-2 text-xs uppercase tracking-widest2 text-bone/60">
+              Pendiente por canjear ({pointsValue?.pendingPoints ?? 0} pts en saldo)
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="mt-12 grid gap-10 lg:grid-cols-2">
