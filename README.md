@@ -812,6 +812,13 @@ resolverlas sin depender del SQL Editor.
   ["Canje de servicios con puntos"](#canje-de-servicios-con-puntos-fase-4-ajuste)),
   ordenados de más cerca a menos — el umbral se calcula del mismo
   catálogo que usa la reserva, no es un número fijo en la pantalla.
+- **Ingresos por citas completadas** — recaudado en efectivo esta
+  semana / este mes / total histórico, contando solo reservas en
+  estado "Completada" según `completed_at` (no `starts_at`: importa
+  cuándo se cobró, no cuándo se agendó). Lo pagado con puntos RED CLUB
+  (`redeemed_with_points`) se muestra **aparte**, como "valor entregado
+  en canjes" — no se suma al efectivo porque esa plata ya se "cobró"
+  antes, en puntos, no ese día.
 - **Valor en pesos de los puntos** — dos números, a la tasa de canje (1
   punto = $300 COP, `COP_PER_REDEMPTION_POINT` en `services.ts`):
   **ya canjeado** (suma de todos los movimientos con

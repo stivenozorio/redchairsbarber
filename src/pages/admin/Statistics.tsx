@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import {
   FaChartLine,
   FaCoins,
+  FaExchangeAlt,
   FaExclamationTriangle,
+  FaMoneyBillWave,
   FaSpinner,
   FaTrophy,
   FaUserPlus,
@@ -39,6 +41,22 @@ interface Counts {
   newMonth: number;
 }
 
+interface RevenuePeriod {
+  /** Suma de total_price_cop de citas completadas pagadas en efectivo
+   * (no canjeadas con puntos) — plata que de verdad entró a caja. */
+  cash: number;
+  /** Suma de total_price_cop de citas completadas pagadas con puntos —
+   * el valor del servicio entregado, aparte del efectivo: no es plata
+   * que haya entrado a caja ese día, ya se "cobró" antes en puntos. */
+  redeemedValue: number;
+}
+
+interface Revenue {
+  week: RevenuePeriod;
+  month: RevenuePeriod;
+  total: RevenuePeriod;
+}
+
 interface PointsValue {
   /** Suma de TODOS los movimientos (positivos y negativos) — el saldo
    * total pendiente de todos los socios, en puntos y en pesos: lo que
@@ -63,6 +81,7 @@ export default function AdminStatistics() {
   const [topPoints, setTopPoints] = useState<MemberPointsRow[]>([]);
   const [closeToRedeem, setCloseToRedeem] = useState<MemberPointsRow[]>([]);
   const [pointsValue, setPointsValue] = useState<PointsValue | null>(null);
+  const [revenue, setRevenue] = useState<Revenue | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,7 +97,7 @@ export default function AdminStatistics() {
     const weekAgoISO = `${shiftDateStr(today, -7)}T00:00:00-05:00`;
     const monthStartISO = `${today.slice(0, 7)}-01T00:00:00-05:00`;
 
-    const [totalRes, weekRes, monthRes, topRes, nearRes, ledgerRes] = await Promise.all([
+    const [totalRes, weekRes, monthRes, topRes, nearRes, ledgerRes, completedRes] = await Promise.all([
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "client"),
       supabase
         .from("profiles")
@@ -107,6 +126,14 @@ export default function AdminStatistics() {
       // esto no quepa en una sola consulta; si el club crece mucho, este
       // cálculo debería moverse a una vista/función en la base.
       supabase.from("points_transactions").select("amount, reason").limit(50000),
+      // Todas las citas completadas, para sumar lo recaudado — mismo
+      // criterio que el libro de puntos arriba: a este tamaño no hace
+      // falta un agregado en la base, solo sumar en el navegador.
+      supabase
+        .from("bookings")
+        .select("total_price_cop, redeemed_with_points, completed_at")
+        .eq("status", "completed")
+        .limit(50000),
     ]);
 
     const firstError =
@@ -116,6 +143,7 @@ export default function AdminStatistics() {
       topRes.error?.message ??
       nearRes.error?.message ??
       ledgerRes.error?.message ??
+      completedRes.error?.message ??
       null;
     if (firstError) setError(firstError);
 
@@ -133,6 +161,28 @@ export default function AdminStatistics() {
       redeemedPoints: ledger
         .filter((row) => row.reason === "reward_redemption")
         .reduce((sum, row) => sum - row.amount, 0),
+    });
+
+    const completedBookings =
+      (completedRes.data as {
+        total_price_cop: number;
+        redeemed_with_points: boolean;
+        completed_at: string | null;
+      }[]) ?? [];
+    const sumPeriod = (sinceISO: string | null): RevenuePeriod =>
+      completedBookings
+        .filter((b) => b.completed_at && (!sinceISO || b.completed_at >= sinceISO))
+        .reduce(
+          (acc, b) =>
+            b.redeemed_with_points
+              ? { ...acc, redeemedValue: acc.redeemedValue + b.total_price_cop }
+              : { ...acc, cash: acc.cash + b.total_price_cop },
+          { cash: 0, redeemedValue: 0 }
+        );
+    setRevenue({
+      week: sumPeriod(weekAgoISO),
+      month: sumPeriod(monthStartISO),
+      total: sumPeriod(null),
     });
     setLoading(false);
   }, []);
@@ -171,6 +221,47 @@ export default function AdminStatistics() {
             <p className="mt-2 text-xs uppercase tracking-widest2 text-bone/60">{tile.label}</p>
           </div>
         ))}
+      </div>
+
+      <div className="mt-12">
+        <p className="eyebrow justify-start before:hidden">Ingresos por citas completadas</p>
+        <p className="mt-3 text-xs text-bone/50">
+          Solo cuenta reservas en estado "Completada", según cuándo se completaron (no cuándo se
+          agendaron). Lo pagado con puntos RED CLUB se muestra aparte: no es plata que haya entrado
+          a caja ese día, ya se "cobró" antes en puntos.
+        </p>
+        <div className="mt-5 space-y-3">
+          {(
+            [
+              { label: "Esta semana", data: revenue?.week },
+              { label: "Este mes", data: revenue?.month },
+              { label: "Total histórico", data: revenue?.total },
+            ] as { label: string; data: RevenuePeriod | undefined }[]
+          ).map((period) => (
+            <div
+              key={period.label}
+              className="card-lux flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <p className="text-sm uppercase tracking-widest2 text-bone/60">{period.label}</p>
+              <div className="flex flex-wrap gap-8">
+                <div>
+                  <p className="flex items-center gap-2 font-display text-2xl text-gold">
+                    <FaMoneyBillWave size={16} /> {formatCop(period.data?.cash ?? 0)}
+                  </p>
+                  <p className="mt-1 text-[10px] uppercase tracking-widest2 text-bone/50">Efectivo</p>
+                </div>
+                <div>
+                  <p className="flex items-center gap-2 font-display text-2xl text-gold/70">
+                    <FaExchangeAlt size={14} /> {formatCop(period.data?.redeemedValue ?? 0)}
+                  </p>
+                  <p className="mt-1 text-[10px] uppercase tracking-widest2 text-bone/50">
+                    Pagado con puntos
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="mt-12">
