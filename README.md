@@ -651,6 +651,15 @@ Incluye:
 - **Servicios** — precio, duración y categoría son la fuente real que
   usa una reserva nueva (no solo el catálogo estático del frontend); un
   servicio no se borra (puede tener historial), se desactiva.
+- **Productos** (Fase 4, ajuste) — catálogo de productos de la barbería
+  (pomadas, aceites, etc.): nombre, categoría, precio y
+  activo/inactivo, igual que Servicios pero sin duración (no ocupa
+  tiempo de agenda). **Primera etapa, deliberadamente incompleta**:
+  todavía no aparecen en `/reservar` ni se pueden canjear con puntos de
+  verdad — el panel ya muestra cuántos puntos costaría cada uno
+  (`≈ N puntos`, misma tasa que un servicio, piso(precio / 300)) como
+  referencia, pero ese número es solo informativo hasta que se decida
+  activar el canje. Ver `0022_products.sql`.
 - **Horarios** — horario semanal por barbero y excepciones puntuales
   (festivos, horario especial de un día). Lo consulta directamente
   `/api/availability` y `/api/book`: cambiarlo aquí cambia qué horas se
@@ -1080,6 +1089,11 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     reserva, para cuando un cliente paga con puntos directo en la
     barbería. Solo un administrador puede llamarla (ver
     ["Canje de puntos presencial"](#canje-de-puntos-presencial-fase-4-ajuste)).
+22. `0022_products.sql` — catálogo de productos: tabla `products` (sin
+    `duration_minutes`, `id` uuid autogenerado), mismo patrón de RLS y
+    GRANT que `services` (lectura pública, escritura solo admin, y
+    `service_role` con acceso completo desde el arranque, para no
+    repetir el bug de 0007/0014/0020).
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

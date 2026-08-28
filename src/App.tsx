@@ -31,6 +31,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminBookings = lazy(() => import("./pages/admin/Bookings"));
 const AdminClients = lazy(() => import("./pages/admin/Clients"));
 const AdminServices = lazy(() => import("./pages/admin/Services"));
+const AdminProducts = lazy(() => import("./pages/admin/Products"));
 const AdminSchedules = lazy(() => import("./pages/admin/Schedules"));
 const AdminBarbers = lazy(() => import("./pages/admin/Barbers"));
 const AdminStatistics = lazy(() => import("./pages/admin/Statistics"));
@@ -114,6 +115,7 @@ function App() {
               <Route path="reservas" element={<AdminBookings />} />
               <Route path="clientes" element={<AdminClients />} />
               <Route path="servicios" element={<AdminServices />} />
+              <Route path="productos" element={<AdminProducts />} />
               <Route path="horarios" element={<AdminSchedules />} />
               <Route path="barberos" element={<AdminBarbers />} />
               <Route path="estadisticas" element={<AdminStatistics />} />

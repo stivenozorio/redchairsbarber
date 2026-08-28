@@ -5,6 +5,7 @@ const TABS = [
   { to: "/admin/reservas", label: "Reservas" },
   { to: "/admin/clientes", label: "Clientes" },
   { to: "/admin/servicios", label: "Servicios" },
+  { to: "/admin/productos", label: "Productos" },
   { to: "/admin/horarios", label: "Horarios" },
   { to: "/admin/barberos", label: "Barberos" },
   { to: "/admin/estadisticas", label: "Estadísticas" },

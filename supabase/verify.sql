@@ -352,3 +352,22 @@ left join public.profiles p on p.id = pt.created_by
 where pt.reason = 'reward_redemption' and pt.booking_id is null
 order by pt.created_at desc
 limit 50;
+
+-- 22. Catálogo de productos (Fase 4, ajuste) -----------------------------
+
+-- 22a. Tabla y permisos deben existir (mismo bug de 0007/0014/0020 si
+-- falta el GRANT a service_role).
+select
+  case when exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'products'
+  ) then '✅ OK' else '❌ FALTA — ejecuta 0022 (ver sección 22)' end as tabla_products;
+
+select
+  case when has_table_privilege('service_role', 'public.products', 'select')
+    then '✅ OK' else '❌ FALTA GRANT a service_role sobre products' end as grant_products_service_role;
+
+-- 22b. Productos cargados hasta ahora.
+select id, name, category, price_cop, active, sort_order
+from public.products
+order by sort_order, name;

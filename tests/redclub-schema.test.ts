@@ -31,6 +31,7 @@ const pointsRedemptionEnum = readMigration("0018_points_redemption.sql");
 const pointsRedemption = readMigration("0019_points_redeem_functions.sql");
 const scheduleServiceRoleGrant = readMigration("0020_grant_schedule_service_role.sql");
 const adminRedeemPoints = readMigration("0021_admin_redeem_points.sql");
+const products = readMigration("0022_products.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -891,4 +892,55 @@ test("0021 no toca puntos históricos: no borra ni actualiza filas existentes", 
     "no debe modificar transacciones de puntos ya existentes — solo inserta filas nuevas hacia adelante"
   );
   assert.ok(adminRedeemPoints.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (ajuste): 0022 catálogo de productos ---
+//
+// Primera etapa, solo catálogo administrable (mismo patrón que
+// `services`): sin duration_minutes (no ocupa agenda), id uuid
+// autogenerado (no un slug fijo del código), lectura pública y
+// escritura solo admin. Ver el comentario del propio archivo para por
+// qué todavía no se integra con /reservar ni con el canje de puntos.
+
+test("0022 crea products con las columnas esperadas, sin duration_minutes", () => {
+  const tableStart = products.indexOf("create table if not exists public.products");
+  assert.notEqual(tableStart, -1, "no se encontró el CREATE TABLE de products");
+  const tableEnd = products.indexOf(");", tableStart);
+  const tableBody = products.slice(tableStart, tableEnd);
+
+  assert.match(tableBody, /id\s+uuid primary key default gen_random_uuid\(\)/);
+  assert.match(tableBody, /price_cop\s+integer not null check \(price_cop >= 0\)/);
+  assert.match(tableBody, /active\s+boolean not null default true/);
+  // Comprobado solo dentro de la definición de la tabla (no del archivo
+  // completo): el comentario de arriba SÍ menciona "duration_minutes"
+  // al explicar por qué no está, lo cual daría un falso negativo si se
+  // buscara en todo el texto.
+  assert.ok(!/duration_minutes/.test(tableBody), "un producto no ocupa tiempo de agenda");
+});
+
+test("0022 habilita RLS con lectura pública y escritura solo para admin", () => {
+  assert.match(products, /alter table public\.products enable row level security/);
+  assert.match(products, /create policy products_select_all on public\.products\s*\n\s*for select using \(true\)/);
+  assert.match(
+    products,
+    /create policy products_admin_insert on public\.products\s*\n\s*for insert with check \(public\.is_admin\(\)\)/
+  );
+  assert.match(
+    products,
+    /create policy products_admin_update on public\.products\s*\n\s*for update using \(public\.is_admin\(\)\)/
+  );
+});
+
+test("0022 concede los permisos de tabla a anon/authenticated/service_role", () => {
+  assert.match(products, /grant select on public\.products to anon, authenticated/);
+  assert.match(products, /grant insert, update on public\.products to authenticated/);
+  assert.match(products, /grant select, insert, update, delete on public\.products to service_role/);
+});
+
+test("0022 no borra nada y refresca el cache de PostgREST", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b/i.test(products),
+    "no debe borrar datos existentes"
+  );
+  assert.ok(products.includes("notify pgrst, 'reload schema'"));
 });
