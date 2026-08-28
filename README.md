@@ -659,7 +659,13 @@ Incluye:
   verdad — el panel ya muestra cuántos puntos costaría cada uno
   (`≈ N puntos`, misma tasa que un servicio, piso(precio / 300)) como
   referencia, pero ese número es solo informativo hasta que se decida
-  activar el canje. Ver `0022_products.sql`.
+  activar el canje. Ver `0022_products.sql`. Cada producto también
+  puede llevar una **foto** (opcional): se sube directo desde el
+  navegador al bucket de Storage `products` (público para lectura, solo
+  admin puede escribir — ver `0023_products_images.sql`), máximo 5 MB;
+  al reemplazarla, la foto anterior **no se borra** de Storage (queda
+  huérfana) — para un catálogo de este tamaño no vale la pena la
+  complejidad extra de rastrearla.
 - **Horarios** — horario semanal por barbero y excepciones puntuales
   (festivos, horario especial de un día). Lo consulta directamente
   `/api/availability` y `/api/book`: cambiarlo aquí cambia qué horas se
@@ -1094,6 +1100,10 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     GRANT que `services` (lectura pública, escritura solo admin, y
     `service_role` con acceso completo desde el arranque, para no
     repetir el bug de 0007/0014/0020).
+23. `0023_products_images.sql` — agrega `products.image_url` y crea el
+    bucket de Storage `products` (público para lectura; solo un
+    administrador puede subir/reemplazar/borrar un archivo, por
+    política de RLS sobre `storage.objects`, no por el bucket).
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

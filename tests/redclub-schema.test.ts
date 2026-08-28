@@ -32,6 +32,7 @@ const pointsRedemption = readMigration("0019_points_redeem_functions.sql");
 const scheduleServiceRoleGrant = readMigration("0020_grant_schedule_service_role.sql");
 const adminRedeemPoints = readMigration("0021_admin_redeem_points.sql");
 const products = readMigration("0022_products.sql");
+const productsImages = readMigration("0023_products_images.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -943,4 +944,42 @@ test("0022 no borra nada y refresca el cache de PostgREST", () => {
     "no debe borrar datos existentes"
   );
   assert.ok(products.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (ajuste): 0023 fotos de producto ---
+
+test("0023 agrega products.image_url y crea el bucket público de Storage", () => {
+  assert.match(productsImages, /alter table public\.products add column if not exists image_url text/);
+  assert.match(
+    productsImages,
+    /insert into storage\.buckets \(id, name, public\)\s*\nvalues \('products', 'products', true\)/
+  );
+});
+
+test("0023 permite ver cualquier foto del bucket 'products' a cualquiera", () => {
+  assert.match(
+    productsImages,
+    /create policy products_images_public_read on storage\.objects\s*\n\s*for select using \(bucket_id = 'products'\)/
+  );
+});
+
+test("0023 solo un admin puede subir, reemplazar o borrar una foto", () => {
+  for (const [policy, clause] of [
+    ["products_images_admin_insert", "with check"],
+    ["products_images_admin_update", "using"],
+    ["products_images_admin_delete", "using"],
+  ] as const) {
+    const re = new RegExp(
+      `create policy ${policy} on storage\\.objects\\s*\\n\\s*for \\w+ ${clause} \\(bucket_id = 'products' and public\\.is_admin\\(\\)\\)`
+    );
+    assert.match(productsImages, re, `falta o está mal la política ${policy}`);
+  }
+});
+
+test("0023 no borra nada y refresca el cache de PostgREST", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdrop bucket\b|\bdelete from\b|\btruncate\b/i.test(productsImages),
+    "no debe borrar datos existentes"
+  );
+  assert.ok(productsImages.includes("notify pgrst, 'reload schema'"));
 });

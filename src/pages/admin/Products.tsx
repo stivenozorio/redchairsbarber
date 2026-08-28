@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { FaCheck, FaExclamationTriangle, FaPlus, FaSpinner } from "react-icons/fa";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { FaCamera, FaCheck, FaExclamationTriangle, FaPlus, FaSpinner } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import { fieldClass, labelClass } from "../../lib/ui";
 import { formatCop } from "../../lib/format";
@@ -12,6 +12,91 @@ interface ProductRow {
   price_cop: number;
   active: boolean;
   sort_order: number;
+  image_url: string | null;
+}
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** Sube una foto al bucket público "products" (ver 0023_products_images.sql)
+ * y devuelve su URL pública. Un nombre de archivo aleatorio evita
+ * choques entre productos distintos; no se intenta borrar la foto
+ * anterior al reemplazarla — para un catálogo de este tamaño no vale
+ * la pena la complejidad extra de rastrear archivos huérfanos. */
+async function uploadProductImage(file: File): Promise<{ url: string | null; error: string | null }> {
+  if (!supabase) return { url: null, error: "Supabase no está configurado." };
+  if (!file.type.startsWith("image/")) return { url: null, error: "El archivo debe ser una imagen." };
+  if (file.size > MAX_IMAGE_BYTES) return { url: null, error: "La imagen no debe pesar más de 5 MB." };
+
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const { error: uploadError } = await supabase.storage.from("products").upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+  if (uploadError) return { url: null, error: uploadError.message };
+
+  const { data } = supabase.storage.from("products").getPublicUrl(path);
+  return { url: data.publicUrl, error: null };
+}
+
+function ProductImagePicker({
+  imageUrl,
+  onUploaded,
+}: {
+  imageUrl: string | null;
+  onUploaded: (url: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    const result = await uploadProductImage(file);
+    setUploading(false);
+    if (result.error || !result.url) {
+      setError(result.error ?? "No se pudo subir la imagen.");
+      return;
+    }
+    onUploaded(result.url);
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      {imageUrl ? (
+        <img src={imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-sm object-cover" />
+      ) : (
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-sm border border-dashed border-gold/30 text-bone/30">
+          <FaCamera size={18} />
+        </div>
+      )}
+      <div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => void handleFile(e.target.files?.[0])}
+        />
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+          className="btn-outline !py-2 !px-4 text-xs disabled:opacity-50"
+        >
+          {uploading ? <FaSpinner className="animate-spin" /> : <FaCamera size={11} />}
+          <span className="ml-2">{imageUrl ? "Cambiar foto" : "Subir foto"}</span>
+        </button>
+        {error && (
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-blood">
+            <FaExclamationTriangle size={10} /> {error}
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ProductRowItem({
@@ -25,6 +110,7 @@ function ProductRowItem({
   const [category, setCategory] = useState(product.category ?? "");
   const [price, setPrice] = useState(String(product.price_cop));
   const [active, setActive] = useState(product.active);
+  const [imageUrl, setImageUrl] = useState(product.image_url);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -45,9 +131,10 @@ function ProductRowItem({
         category: category.trim() || null,
         price_cop: Math.max(0, Math.round(Number(price) || 0)),
         active,
+        image_url: imageUrl,
       })
       .eq("id", product.id)
-      .select("id, name, category, price_cop, active, sort_order")
+      .select("id, name, category, price_cop, active, sort_order, image_url")
       .single();
 
     setSaving(false);
@@ -63,6 +150,15 @@ function ProductRowItem({
 
   return (
     <div className={`card-lux ${!active ? "opacity-60" : ""}`}>
+      <div className="mb-4">
+        <ProductImagePicker
+          imageUrl={imageUrl}
+          onUploaded={(url) => {
+            setImageUrl(url);
+            setDirty(true);
+          }}
+        />
+      </div>
       <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr_auto]">
         <div>
           <label className={labelClass}>Nombre</label>
@@ -129,6 +225,7 @@ function NewProductForm({ onCreated }: { onCreated: (created: ProductRow) => voi
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [price, setPrice] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -147,8 +244,9 @@ function NewProductForm({ onCreated }: { onCreated: (created: ProductRow) => voi
         category: category.trim() || null,
         price_cop: Math.max(0, Math.round(Number(price) || 0)),
         active: true,
+        image_url: imageUrl,
       })
-      .select("id, name, category, price_cop, active, sort_order")
+      .select("id, name, category, price_cop, active, sort_order, image_url")
       .single();
 
     setSaving(false);
@@ -160,6 +258,7 @@ function NewProductForm({ onCreated }: { onCreated: (created: ProductRow) => voi
     setName("");
     setCategory("");
     setPrice("");
+    setImageUrl(null);
     setOpen(false);
   };
 
@@ -173,6 +272,9 @@ function NewProductForm({ onCreated }: { onCreated: (created: ProductRow) => voi
 
   return (
     <div className="card-lux border-gold/30">
+      <div className="mb-4">
+        <ProductImagePicker imageUrl={imageUrl} onUploaded={setImageUrl} />
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className={labelClass}>Nombre</label>
@@ -235,7 +337,7 @@ export default function AdminProducts() {
     setError(null);
     const { data, error: fetchError } = await supabase
       .from("products")
-      .select("id, name, category, price_cop, active, sort_order")
+      .select("id, name, category, price_cop, active, sort_order, image_url")
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 

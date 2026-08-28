@@ -368,6 +368,17 @@ select
     then '✅ OK' else '❌ FALTA GRANT a service_role sobre products' end as grant_products_service_role;
 
 -- 22b. Productos cargados hasta ahora.
-select id, name, category, price_cop, active, sort_order
+select id, name, category, price_cop, active, sort_order, image_url
 from public.products
 order by sort_order, name;
+
+-- 23. Fotos de producto (Fase 4, ajuste) ---------------------------------
+
+-- 23a. Bucket público debe existir.
+select
+  case when exists (
+    select 1 from storage.buckets where id = 'products'
+  ) then '✅ OK' else '❌ FALTA — ejecuta 0023 (ver sección 23)' end as bucket_products;
+
+-- 23b. Cuántas fotos hay subidas.
+select count(*) as fotos_subidas from storage.objects where bucket_id = 'products';
