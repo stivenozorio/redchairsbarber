@@ -3,7 +3,7 @@ import { FaCamera, FaCheck, FaExclamationTriangle, FaPlus, FaSpinner } from "rea
 import { supabase } from "../../lib/supabase";
 import { fieldClass, labelClass } from "../../lib/ui";
 import { formatCop } from "../../lib/format";
-import { calculateRedemptionCost } from "../../data/services";
+import { COP_PER_REDEMPTION_POINT } from "../../data/services";
 
 interface ProductRow {
   id: string;
@@ -13,6 +13,19 @@ interface ProductRow {
   active: boolean;
   sort_order: number;
   image_url: string | null;
+  description: string | null;
+  points_cost: number;
+}
+
+/** A diferencia de calculateRedemptionCost() (services.ts, que SIEMPRE
+ * redondea hacia abajo — a favor del cliente, a propósito), el costo en
+ * puntos de un producto lo decide el negocio a mano: esto solo sugiere
+ * un punto de partida redondeando hacia ARRIBA (a favor de la
+ * barbería), editable en el formulario. No cambiar a floor() aquí:
+ * services.ts es la única fuente de verdad para servicios y debe
+ * seguir siendo piso(). */
+function suggestPointsCost(priceCop: number): number {
+  return Math.ceil(priceCop / COP_PER_REDEMPTION_POINT);
 }
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -109,6 +122,8 @@ function ProductRowItem({
   const [name, setName] = useState(product.name);
   const [category, setCategory] = useState(product.category ?? "");
   const [price, setPrice] = useState(String(product.price_cop));
+  const [pointsCost, setPointsCost] = useState(String(product.points_cost));
+  const [description, setDescription] = useState(product.description ?? "");
   const [active, setActive] = useState(product.active);
   const [imageUrl, setImageUrl] = useState(product.image_url);
   const [saving, setSaving] = useState(false);
@@ -130,11 +145,13 @@ function ProductRowItem({
         name: name.trim(),
         category: category.trim() || null,
         price_cop: Math.max(0, Math.round(Number(price) || 0)),
+        points_cost: Math.max(0, Math.round(Number(pointsCost) || 0)),
+        description: description.trim() || null,
         active,
         image_url: imageUrl,
       })
       .eq("id", product.id)
-      .select("id, name, category, price_cop, active, sort_order, image_url")
+      .select("id, name, category, price_cop, active, sort_order, image_url, description, points_cost")
       .single();
 
     setSaving(false);
@@ -147,6 +164,8 @@ function ProductRowItem({
   };
 
   const priceCop = Math.max(0, Math.round(Number(price) || 0));
+  const pointsCop = Math.max(0, Math.round(Number(pointsCost) || 0));
+  const suggested = suggestPointsCost(priceCop);
 
   return (
     <div className={`card-lux ${!active ? "opacity-60" : ""}`}>
@@ -159,7 +178,7 @@ function ProductRowItem({
           }}
         />
       </div>
-      <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr_auto]">
+      <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
         <div>
           <label className={labelClass}>Nombre</label>
           <input value={name} onChange={(e) => markDirty(setName)(e.target.value)} className={fieldClass} />
@@ -179,6 +198,16 @@ function ProductRowItem({
             min={0}
             value={price}
             onChange={(e) => markDirty(setPrice)(e.target.value)}
+            className={fieldClass}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Puntos para canjear</label>
+          <input
+            type="number"
+            min={0}
+            value={pointsCost}
+            onChange={(e) => markDirty(setPointsCost)(e.target.value)}
             className={fieldClass}
           />
         </div>
@@ -202,15 +231,21 @@ function ProductRowItem({
           </button>
         </div>
       </div>
-      {!dirty && (
-        <p className="mt-3 text-xs text-bone/40">
-          {formatCop(product.price_cop)} · ≈ {calculateRedemptionCost(product.price_cop)} puntos si se
-          canjeara
-        </p>
-      )}
-      {dirty && priceCop > 0 && (
-        <p className="mt-3 text-xs text-bone/40">≈ {calculateRedemptionCost(priceCop)} puntos si se canjeara</p>
-      )}
+      <div className="mt-4">
+        <label className={labelClass}>Descripción (opcional)</label>
+        <textarea
+          value={description}
+          onChange={(e) => markDirty(setDescription)(e.target.value)}
+          rows={2}
+          className={`${fieldClass} resize-none`}
+        />
+      </div>
+      <p className="mt-3 text-xs text-bone/40">
+        {formatCop(priceCop)}
+        {pointsCop !== suggested && (
+          <span> · sugerido a esta tasa: {suggested} puntos (redondeado a favor de la barbería)</span>
+        )}
+      </p>
       {error && (
         <p className="mt-3 flex items-center gap-1.5 text-xs text-blood">
           <FaExclamationTriangle size={10} /> {error}
@@ -225,9 +260,23 @@ function NewProductForm({ onCreated }: { onCreated: (created: ProductRow) => voi
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [price, setPrice] = useState("");
+  const [pointsCost, setPointsCost] = useState("");
+  const [pointsTouched, setPointsTouched] = useState(false);
+  const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sugiere los puntos solos mientras el admin no los haya tocado a
+  // mano — en cuanto edita el campo de puntos directamente, dejar de
+  // pisarlo aunque siga cambiando el precio.
+  const handlePriceChange = (value: string) => {
+    setPrice(value);
+    if (!pointsTouched) {
+      const priceCop = Math.max(0, Math.round(Number(value) || 0));
+      setPointsCost(priceCop > 0 ? String(suggestPointsCost(priceCop)) : "");
+    }
+  };
 
   const handleCreate = async () => {
     if (!supabase) return;
@@ -243,10 +292,12 @@ function NewProductForm({ onCreated }: { onCreated: (created: ProductRow) => voi
         name: name.trim(),
         category: category.trim() || null,
         price_cop: Math.max(0, Math.round(Number(price) || 0)),
+        points_cost: Math.max(0, Math.round(Number(pointsCost) || 0)),
+        description: description.trim() || null,
         active: true,
         image_url: imageUrl,
       })
-      .select("id, name, category, price_cop, active, sort_order, image_url")
+      .select("id, name, category, price_cop, active, sort_order, image_url, description, points_cost")
       .single();
 
     setSaving(false);
@@ -258,6 +309,9 @@ function NewProductForm({ onCreated }: { onCreated: (created: ProductRow) => voi
     setName("");
     setCategory("");
     setPrice("");
+    setPointsCost("");
+    setPointsTouched(false);
+    setDescription("");
     setImageUrl(null);
     setOpen(false);
   };
@@ -291,7 +345,37 @@ function NewProductForm({ onCreated }: { onCreated: (created: ProductRow) => voi
         </div>
         <div>
           <label className={labelClass}>Precio (COP)</label>
-          <input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} className={fieldClass} />
+          <input
+            type="number"
+            min={0}
+            value={price}
+            onChange={(e) => handlePriceChange(e.target.value)}
+            className={fieldClass}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Puntos para canjear</label>
+          <input
+            type="number"
+            min={0}
+            value={pointsCost}
+            onChange={(e) => {
+              setPointsTouched(true);
+              setPointsCost(e.target.value);
+            }}
+            placeholder="Sugerido según el precio"
+            className={fieldClass}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Descripción (opcional)</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder="Resultado, para qué sirve..."
+            className={`${fieldClass} resize-none`}
+          />
         </div>
       </div>
       {error && (
@@ -317,12 +401,13 @@ function NewProductForm({ onCreated }: { onCreated: (created: ProductRow) => voi
 }
 
 /** Catálogo de productos — primera etapa: solo administrarlo desde
- * aquí (nombre, categoría, precio, activo/inactivo). Todavía NO
- * aparece en /reservar ni se puede canjear con puntos de verdad; el
- * "≈ N puntos" que se muestra es solo informativo, calculado con la
- * misma tasa que un servicio (piso(precio / 300)), para tener el
- * número listo cuando se decida activar el canje. Ver
- * 0022_products.sql. */
+ * aquí (nombre, categoría, precio, descripción, puntos y
+ * activo/inactivo). Todavía NO aparece en /reservar ni se puede
+ * canjear con puntos de verdad — "Puntos para canjear" ya queda
+ * guardado para cuando se active esa fase. A diferencia de un
+ * servicio, el costo en puntos de un producto es un número que el
+ * negocio decide a mano (sugerido redondeando hacia arriba, a favor de
+ * la barbería), no una fórmula fija. Ver 0022/0024. */
 export default function AdminProducts() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -337,7 +422,7 @@ export default function AdminProducts() {
     setError(null);
     const { data, error: fetchError } = await supabase
       .from("products")
-      .select("id, name, category, price_cop, active, sort_order, image_url")
+      .select("id, name, category, price_cop, active, sort_order, image_url, description, points_cost")
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 
@@ -365,7 +450,9 @@ export default function AdminProducts() {
       <p className="text-sm text-bone/60">
         Catálogo de productos de la barbería (pomadas, aceites, etc.). Por ahora es solo
         administrativo: todavía no aparecen en /reservar ni se pueden canjear con puntos de
-        verdad — el "≈ N puntos" es informativo, a la misma tasa que un servicio.
+        verdad. "Puntos para canjear" se sugiere redondeando hacia arriba (a favor de la
+        barbería) según el precio, pero es editable — no tiene que coincidir con la fórmula de
+        los servicios.
       </p>
 
       <div className="mt-6">

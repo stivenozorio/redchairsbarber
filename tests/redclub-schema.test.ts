@@ -33,6 +33,7 @@ const scheduleServiceRoleGrant = readMigration("0020_grant_schedule_service_role
 const adminRedeemPoints = readMigration("0021_admin_redeem_points.sql");
 const products = readMigration("0022_products.sql");
 const productsImages = readMigration("0023_products_images.sql");
+const productsSeed = readMigration("0024_products_seed.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -982,4 +983,42 @@ test("0023 no borra nada y refresca el cache de PostgREST", () => {
     "no debe borrar datos existentes"
   );
   assert.ok(productsImages.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (ajuste): 0024 puntos editables, descripción y catálogo real ---
+
+test("0024 agrega description y points_cost (no reutiliza calculateRedemptionCost)", () => {
+  assert.match(productsSeed, /add column if not exists description text/);
+  assert.match(productsSeed, /add column if not exists points_cost integer not null default 0/);
+  assert.match(productsSeed, /check \(points_cost >= 0\)/);
+});
+
+test("0024 agrega una restricción única sobre el nombre, para que el seed sea seguro de repetir", () => {
+  assert.match(productsSeed, /add constraint products_name_key unique \(name\)/);
+  assert.match(productsSeed, /on conflict \(name\) do nothing/);
+});
+
+test("0024 siembra los 12 productos reales, con los puntos redondeados hacia ARRIBA desde el precio (a favor de la barbería, a pedido explícito)", () => {
+  const rows = [
+    ...productsSeed.matchAll(/\(\s*'((?:[^'\\]|\\.)*)',\s*'((?:[^'\\]|\\.)*)',\s*(\d+),\s*(\d+),/g),
+  ];
+  assert.equal(rows.length, 12, `se esperaban 12 productos sembrados, se encontraron ${rows.length}`);
+  for (const row of rows) {
+    const [, name, , priceStr, pointsStr] = row;
+    const price = Number(priceStr);
+    const points = Number(pointsStr);
+    assert.equal(
+      points,
+      Math.ceil(price / 300),
+      `${name}: ${points} puntos no coincide con techo(${price} / 300) = ${Math.ceil(price / 300)}`
+    );
+  }
+});
+
+test("0024 no borra ni pisa productos ya cargados a mano", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b|\bupdate public\.products\b/i.test(productsSeed),
+    "el seed debe ser solo aditivo — on conflict do nothing, nunca update"
+  );
+  assert.ok(productsSeed.includes("notify pgrst, 'reload schema'"));
 });

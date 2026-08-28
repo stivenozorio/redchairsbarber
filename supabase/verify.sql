@@ -367,8 +367,9 @@ select
   case when has_table_privilege('service_role', 'public.products', 'select')
     then '✅ OK' else '❌ FALTA GRANT a service_role sobre products' end as grant_products_service_role;
 
--- 22b. Productos cargados hasta ahora.
-select id, name, category, price_cop, active, sort_order, image_url
+-- 22b. Productos cargados hasta ahora (incluye puntos y descripción,
+-- agregados en 0024).
+select id, name, category, price_cop, points_cost, active, sort_order, image_url
 from public.products
 order by sort_order, name;
 
@@ -382,3 +383,17 @@ select
 
 -- 23b. Cuántas fotos hay subidas.
 select count(*) as fotos_subidas from storage.objects where bucket_id = 'products';
+
+-- 24. Catálogo real de productos (Fase 4, ajuste) ------------------------
+
+-- 24a. Deben estar los 12 productos del catálogo real.
+select
+  case when (select count(*) from public.products) >= 12
+    then '✅ OK' else '❌ FALTAN productos — ejecuta 0024 (ver sección 24)' end as catalogo_real_cargado;
+
+-- 24b. Ningún producto con puntos en 0 (indicaría que se creó a mano
+-- sin llenar el campo, o que el seed no corrió bien).
+select id, name, price_cop, points_cost
+from public.products
+where points_cost = 0
+order by name;

@@ -652,20 +652,39 @@ Incluye:
   usa una reserva nueva (no solo el catálogo estático del frontend); un
   servicio no se borra (puede tener historial), se desactiva.
 - **Productos** (Fase 4, ajuste) — catálogo de productos de la barbería
-  (pomadas, aceites, etc.): nombre, categoría, precio y
-  activo/inactivo, igual que Servicios pero sin duración (no ocupa
-  tiempo de agenda). **Primera etapa, deliberadamente incompleta**:
-  todavía no aparecen en `/reservar` ni se pueden canjear con puntos de
-  verdad — el panel ya muestra cuántos puntos costaría cada uno
-  (`≈ N puntos`, misma tasa que un servicio, piso(precio / 300)) como
-  referencia, pero ese número es solo informativo hasta que se decida
-  activar el canje. Ver `0022_products.sql`. Cada producto también
-  puede llevar una **foto** (opcional): se sube directo desde el
-  navegador al bucket de Storage `products` (público para lectura, solo
-  admin puede escribir — ver `0023_products_images.sql`), máximo 5 MB;
-  al reemplazarla, la foto anterior **no se borra** de Storage (queda
-  huérfana) — para un catálogo de este tamaño no vale la pena la
-  complejidad extra de rastrearla.
+  (pomadas, aceites, etc.): nombre, categoría, precio, descripción,
+  puntos para canjear y activo/inactivo — igual que Servicios pero sin
+  duración (no ocupa tiempo de agenda). **Primera etapa, deliberadamente
+  incompleta**: todavía no aparecen en `/reservar` ni se pueden canjear
+  con puntos de verdad — el campo ya queda guardado, listo para cuando
+  se active esa fase. Ver `0022_products.sql`.
+
+  **El costo en puntos de un producto NO usa la misma fórmula que un
+  servicio.** Un servicio siempre calcula piso(precio / 300) — redondea
+  a favor del cliente, a propósito (ver
+  ["Canje de servicios con puntos"](#canje-de-servicios-con-puntos-fase-4-ajuste)).
+  Para productos, el dueño del negocio pidió lo contrario: redondear a
+  favor de la barbería. En vez de forzar esa diferencia dentro de la
+  misma función (`calculateRedemptionCost` en `services.ts`, que debe
+  seguir siendo piso() siempre, para servicios), `points_cost` es un
+  campo propio y editable en `products`: el panel sugiere
+  techo(precio / 300) al crear un producto nuevo o cambiar su precio
+  (mientras el admin no haya tocado el campo a mano), pero el número
+  final siempre se puede ajustar. Ver `0024_products_seed.sql`.
+
+  **Cada producto también puede llevar una foto** (opcional): se sube
+  directo desde el navegador al bucket de Storage `products` (público
+  para lectura, solo admin puede escribir — ver
+  `0023_products_images.sql`), máximo 5 MB; al reemplazarla, la foto
+  anterior **no se borra** de Storage (queda huérfana) — para un
+  catálogo de este tamaño no vale la pena la complejidad extra de
+  rastrearla.
+
+  **El catálogo real de 12 productos (Shampoo CMS, Agiva, Ossion,
+  Minoxidil, Derma Roller y 4 combos) ya viene sembrado por
+  `0024_products_seed.sql`** — es seguro de correr aunque ya hayas
+  cargado productos a mano (`on conflict (name) do nothing`, nunca
+  pisa ni borra nada existente).
 - **Horarios** — horario semanal por barbero y excepciones puntuales
   (festivos, horario especial de un día). Lo consulta directamente
   `/api/availability` y `/api/book`: cambiarlo aquí cambia qué horas se
@@ -1104,6 +1123,12 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     bucket de Storage `products` (público para lectura; solo un
     administrador puede subir/reemplazar/borrar un archivo, por
     política de RLS sobre `storage.objects`, no por el bucket).
+24. `0024_products_seed.sql` — agrega `products.description` y
+    `products.points_cost` (editable, NO calculado con la misma fórmula
+    que un servicio — ver el porqué en "Panel administrativo" arriba),
+    una restricción única sobre `name` para que el seed sea repetible,
+    y siembra el catálogo real de 12 productos (`on conflict (name) do
+    nothing`, no pisa nada ya cargado a mano).
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede
