@@ -29,8 +29,10 @@ export default function BarberProfileModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  const activeStatuses = new Set(["pending", "confirmed", "in_progress"]);
   const counts = {
     total: bookings.length,
+    activas: bookings.filter((b) => activeStatuses.has(b.status)).length,
     completadas: bookings.filter((b) => b.status === "completed").length,
     canceladas: bookings.filter((b) => b.status === "cancelled").length,
     noAsistio: bookings.filter((b) => b.status === "no_show").length,
@@ -61,6 +63,9 @@ export default function BarberProfileModal({
           <div className="mt-4 flex flex-wrap gap-3 text-xs uppercase tracking-widest2 text-bone/60">
             <span className="rounded-sm border border-gold/20 px-3 py-1">
               {counts.total} en total
+            </span>
+            <span className="rounded-sm border border-gold/40 px-3 py-1 text-gold">
+              {counts.activas} activa{counts.activas === 1 ? "" : "s"}
             </span>
             <span className="rounded-sm border border-gold/20 px-3 py-1 text-gold">
               {counts.completadas} completadas

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { FaCheck, FaExclamationTriangle, FaIdBadge, FaSpinner } from "react-icons/fa";
+import { FaCalendarCheck, FaCheck, FaExclamationTriangle, FaIdBadge, FaSpinner } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import { fieldClass, labelClass } from "../../lib/ui";
 import BarberProfileModal from "../../components/admin/BarberProfileModal";
@@ -11,12 +11,21 @@ interface BarberRow {
   sort_order: number;
 }
 
+/** Reservas que todavía requieren atención — ni completadas ni
+ * canceladas ni "no asistió". Es lo que hay que reasignar o avisarle
+ * al cliente cuando un barbero se va, sin importar si la fecha ya
+ * quedó en el pasado (una pendiente vencida sigue necesitando que
+ * alguien la resuelva). */
+const ACTIVE_STATUSES = new Set(["pending", "confirmed", "in_progress"]);
+
 function BarberRowItem({
   barber,
+  activeBookings,
   onSaved,
   onViewProfile,
 }: {
   barber: BarberRow;
+  activeBookings: number;
   onSaved: (updated: BarberRow) => void;
   onViewProfile: () => void;
 }) {
@@ -91,7 +100,15 @@ function BarberRowItem({
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
-        <p className="text-xs text-bone/40">id: {barber.id}</p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-bone/40">id: {barber.id}</p>
+          {activeBookings > 0 && (
+            <span className="flex items-center gap-1.5 rounded-full border border-gold/30 px-2.5 py-0.5 text-xs text-gold">
+              <FaCalendarCheck size={10} /> {activeBookings} reserva{activeBookings === 1 ? "" : "s"} activa
+              {activeBookings === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
         <button
           type="button"
           onClick={onViewProfile}
@@ -119,6 +136,10 @@ export default function AdminBarbers() {
   // habiendo una forma de encontrarlos sin tocar SQL, por si hace
   // falta reactivar a alguien más adelante.
   const [showInactive, setShowInactive] = useState(false);
+  // Cuántas reservas sin resolver tiene cada barbero — para planear la
+  // transición cuando uno se va y entra otro (a quién hay que
+  // reasignar o avisarle antes de desactivarlo).
+  const [activeCounts, setActiveCounts] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     if (!supabase) {
@@ -127,16 +148,26 @@ export default function AdminBarbers() {
     }
     setLoading(true);
     setError(null);
-    const { data, error: fetchError } = await supabase
-      .from("barbers")
-      .select("id, name, active, sort_order")
-      .order("sort_order", { ascending: true });
+    const [barbersRes, activeBookingsRes] = await Promise.all([
+      supabase.from("barbers").select("id, name, active, sort_order").order("sort_order", { ascending: true }),
+      supabase
+        .from("bookings")
+        .select("barber_id")
+        .neq("source", "blocked")
+        .in("status", [...ACTIVE_STATUSES]),
+    ]);
 
-    if (fetchError) {
-      setError(fetchError.message);
+    if (barbersRes.error) {
+      setError(barbersRes.error.message);
     } else {
-      setBarbers((data as BarberRow[]) ?? []);
+      setBarbers((barbersRes.data as BarberRow[]) ?? []);
     }
+
+    const counts: Record<string, number> = {};
+    for (const row of (activeBookingsRes.data as { barber_id: string }[]) ?? []) {
+      counts[row.barber_id] = (counts[row.barber_id] ?? 0) + 1;
+    }
+    setActiveCounts(counts);
     setLoading(false);
   }, []);
 
@@ -188,6 +219,7 @@ export default function AdminBarbers() {
             <BarberRowItem
               key={barber.id}
               barber={barber}
+              activeBookings={activeCounts[barber.id] ?? 0}
               onSaved={handleSaved}
               onViewProfile={() => setViewingBarber(barber)}
             />

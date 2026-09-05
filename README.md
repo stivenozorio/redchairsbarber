@@ -741,6 +741,15 @@ horario por defecto de un barbero nuevo.
   de nuevo marcando el checkbox **"Mostrar inactivos"** que sale encima
   de la lista en cuanto hay al menos uno, por si hace falta
   reactivarlo más adelante sin tocar SQL.
+
+  **Cada tarjeta muestra cuántas reservas "activas" tiene ese barbero**
+  (pendiente, confirmada o en proceso — ni completada, ni cancelada, ni
+  "no asistió"), para planear la transición cuando alguien se va y
+  entra un reemplazo: cuántas citas hay que reasignar o avisarle al
+  cliente antes de desactivarlo. El mismo número, más detallado, sale
+  en "Ver perfil". El conteo se trae con una sola consulta a
+  `bookings` para todos los barberos a la vez (agrupado en el
+  navegador, no con una consulta por tarjeta).
 - **Estadísticas** (Fase 4, ajuste) — ver
   ["Estadísticas del club"](#estadísticas-del-club-fase-4-ajuste) más
   abajo.
