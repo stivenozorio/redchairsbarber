@@ -28,6 +28,7 @@ import { BARBERS, TIME_SLOTS } from "../data/booking";
 import { PHONE_NUMBER } from "../data/site";
 import { useAuth } from "../auth/useAuth";
 import { useServiceOverrides } from "../hooks/useServiceOverrides";
+import { useActiveBarberIds } from "../hooks/useActiveBarberIds";
 import { useMemberSummary } from "../hooks/useMemberSummary";
 
 const fieldClass =
@@ -160,6 +161,22 @@ export default function Booking() {
   // descripciones). Sin esto, un cambio de precio o duración en
   // /admin/servicios solo se vería reflejado al confirmar la cita, no
   // mientras el cliente todavía la está armando.
+  // Barberos activos en vivo: si un admin desactiva a alguien (ej. ya
+  // no trabaja ahí), este selector deja de ofrecerlo de inmediato, sin
+  // esperar un despliegue. "Sin preferencia" siempre se muestra — no es
+  // un barbero real de la tabla. `null` mientras carga o si Supabase no
+  // está configurado: en ese caso se muestran todos, igual que el
+  // catálogo estático de siempre.
+  const activeBarberIds = useActiveBarberIds();
+  const visibleBarbers = useMemo(
+    () => (activeBarberIds ? BARBERS.filter((b) => b.id === "any" || activeBarberIds.has(b.id)) : BARBERS),
+    [activeBarberIds]
+  );
+  useEffect(() => {
+    if (!visibleBarbers.some((b) => b.id === barberId)) setBarberId("any");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleBarbers]);
+
   const serviceOverrides = useServiceOverrides();
   const liveServiceCatalog = useMemo(
     () => applyLiveOverrides(ALL_BOOKABLE_SERVICES, serviceOverrides),
@@ -718,7 +735,7 @@ export default function Booking() {
                     onChange={(e) => setBarberId(e.target.value)}
                     className={fieldClass}
                   >
-                    {BARBERS.map((b) => (
+                    {visibleBarbers.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name}
                       </option>

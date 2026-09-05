@@ -763,6 +763,21 @@ horario por defecto de un barbero nuevo.
   preferencia": eso sigue el orden fijo `requestedCandidates` en
   `api/book.ts` (hoy intenta primero con Camilo).
 
+  **Lo que sí controla `active` es si el barbero se OFRECE como
+  opción en `/reservar` (Fase 4, ajuste).** Antes, el selector de
+  `/reservar` mostraba siempre los tres valores fijos de `BARBERS`
+  (incluido uno desactivado) — desactivar a alguien lo sacaba de la
+  asignación real (`getActiveBarbers()` en `api/book.ts`/
+  `api/availability.ts`), pero seguía apareciendo como opción
+  seleccionable en el formulario, lo que confundía al cliente al elegir
+  a alguien que ya no atendía. `useActiveBarberIds()` consulta
+  `barbers.active` en vivo (lectura pública por RLS, igual que
+  `useServiceOverrides`) y el selector filtra la lista estática con
+  ese resultado — "Sin preferencia" siempre se muestra, no es una fila
+  real de la tabla. Si el barbero seleccionado deja de estar disponible
+  mientras el cliente ya tenía el formulario abierto, se resetea solo a
+  "Sin preferencia".
+
 **Cambiar el estado de una cita a "Completada" ya otorga puntos y suma
 la visita** (Fase 4, migración 0013) — el trigger
 `set_booking_status_timestamps` (migración 0008) sella `completed_at`,
