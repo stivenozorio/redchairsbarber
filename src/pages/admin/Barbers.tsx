@@ -114,6 +114,11 @@ export default function AdminBarbers() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewingBarber, setViewingBarber] = useState<BarberRow | null>(null);
+  // Por defecto oculta los inactivos (ej. un barbero que ya no trabaja
+  // ahí) para no verlos estorbando en esta pantalla — pero sigue
+  // habiendo una forma de encontrarlos sin tocar SQL, por si hace
+  // falta reactivar a alguien más adelante.
+  const [showInactive, setShowInactive] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) {
@@ -143,14 +148,29 @@ export default function AdminBarbers() {
     setBarbers((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
   };
 
+  const visibleBarbers = showInactive ? barbers : barbers.filter((b) => b.active);
+  const inactiveCount = barbers.length - barbers.filter((b) => b.active).length;
+
   return (
     <div>
       <p className="text-sm text-bone/60">
         Desactivar un barbero lo saca del selector de reservas y de la disponibilidad (útil para
-        vacaciones o incapacidad) sin perder su historial. Agregar un barbero nuevo de verdad requiere
-        también su propio calendario de Google (una variable de entorno) — no se puede crear solo desde
-        aquí; pide que se configure primero.
+        vacaciones, incapacidad, o alguien que ya no trabaja ahí) sin perder su historial. Agregar un
+        barbero nuevo de verdad requiere también su propio calendario de Google (una variable de
+        entorno) — no se puede crear solo desde aquí; pide que se configure primero.
       </p>
+
+      {inactiveCount > 0 && (
+        <label className="mt-4 flex w-fit items-center gap-2 text-xs uppercase tracking-widest2 text-bone/60">
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => setShowInactive(e.target.checked)}
+            className="accent-gold"
+          />
+          Mostrar inactivos ({inactiveCount})
+        </label>
+      )}
 
       <div className="mt-8 space-y-4">
         {loading ? (
@@ -159,8 +179,12 @@ export default function AdminBarbers() {
           </p>
         ) : error ? (
           <p className="text-sm text-blood">No se pudieron cargar los barberos: {error}</p>
+        ) : visibleBarbers.length === 0 ? (
+          <div className="card-lux">
+            <p className="text-sm text-bone/70">No hay barberos activos en este momento.</p>
+          </div>
         ) : (
-          barbers.map((barber) => (
+          visibleBarbers.map((barber) => (
             <BarberRowItem
               key={barber.id}
               barber={barber}

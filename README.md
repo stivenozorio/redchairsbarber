@@ -728,6 +728,19 @@ horario por defecto de un barbero nuevo.
   barbero *nuevo de verdad* no se puede hacer solo desde aquí: necesita
   su propio calendario de Google (una variable de entorno más, ver
   arriba) y no lo cubre esta fase.
+
+  **No hay botón para borrar un barbero (Fase 4, ajuste), y es
+  intencional.** `bookings.barber_id` referencia a `barbers` sin
+  cascada de borrado: si el barbero tiene aunque sea una reserva en su
+  historial, Postgres rechaza el `DELETE` con una violación de llave
+  foránea — y si se forzara de todos modos, se perdería para siempre su
+  historial de reservas, los puntos que sus clientes ganaron con él, y
+  su auditoría de sincronización con Calendar. Para "ya no está", la
+  única operación soportada es desactivarlo. Un barbero **inactivo se
+  oculta automáticamente de esta lista** (para no estorbar) — aparece
+  de nuevo marcando el checkbox **"Mostrar inactivos"** que sale encima
+  de la lista en cuanto hay al menos uno, por si hace falta
+  reactivarlo más adelante sin tocar SQL.
 - **Estadísticas** (Fase 4, ajuste) — ver
   ["Estadísticas del club"](#estadísticas-del-club-fase-4-ajuste) más
   abajo.
