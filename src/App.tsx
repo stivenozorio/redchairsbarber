@@ -11,6 +11,7 @@ import Services from "./pages/Services";
 import VipExperience from "./pages/VipExperience";
 import Loyalty from "./pages/Loyalty";
 import PointsTable from "./pages/PointsTable";
+import Products from "./pages/Products";
 import About from "./pages/About";
 import Booking from "./pages/Booking";
 import Contact from "./pages/Contact";
@@ -84,6 +85,7 @@ function App() {
           <Route path="/experiencia-vip" element={<VipExperience />} />
           <Route path="/fidelizacion" element={<Loyalty />} />
           <Route path="/puntos" element={<PointsTable />} />
+          <Route path="/productos" element={<Products />} />
           <Route path="/nosotros" element={<About />} />
           <Route path="/contacto" element={<Contact />} />
 

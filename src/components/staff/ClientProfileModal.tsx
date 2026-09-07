@@ -5,6 +5,7 @@ import type { ClubMemberSummary } from "../../types/club";
 import { useMyBookings } from "../../hooks/useMyBookings";
 import { useAuth } from "../../auth/useAuth";
 import { useServiceOverrides } from "../../hooks/useServiceOverrides";
+import { useActiveProducts } from "../../hooks/useActiveProducts";
 import { useAdminRedeemPoints } from "../../hooks/useAdminRedeemPoints";
 import { BOOKING_STATUS_LABEL } from "../../data/bookingStatus";
 import { formatBirthday, formatShortDate, formatTime } from "../../lib/format";
@@ -37,40 +38,49 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const { upcoming, past, loading: loadingBookings, error: bookingsError } = useMyBookings(userId);
 
-  // Canje de puntos presencial (solo admin) — ver "Estadísticas del
-  // club"/services.ts para la misma tasa (piso(precio / 300)) que usa
-  // el canje en línea.
+  // Canje de puntos presencial (solo admin): un servicio (misma tasa
+  // que el canje en línea, piso(precio / 300) — ver services.ts) o un
+  // producto (su propio costo en puntos, points_cost, que redondea
+  // hacia arriba y se edita a mano en /admin/productos — no reutiliza
+  // la fórmula de servicios a propósito, ver 0024_products_seed.sql).
   const overrides = useServiceOverrides();
   const liveServices = useMemo(() => applyLiveOverrides(ALL_BOOKABLE_SERVICES, overrides), [overrides]);
+  const products = useActiveProducts();
   const { redeem, saving: redeeming } = useAdminRedeemPoints();
+  const [redeemType, setRedeemType] = useState<"service" | "product">("service");
   const [redeemServiceId, setRedeemServiceId] = useState("");
+  const [redeemProductId, setRedeemProductId] = useState("");
   const [redeemError, setRedeemError] = useState<string | null>(null);
   const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
 
   const redeemService = liveServices.find((s) => s.id === redeemServiceId) ?? null;
-  const redeemCost = redeemService ? calculateRedemptionCost(parsePriceToNumber(redeemService.price)) : 0;
+  const redeemProduct = (products ?? []).find((p) => p.id === redeemProductId) ?? null;
+  const redeemName = redeemType === "service" ? redeemService?.name : redeemProduct?.name;
+  const redeemCost =
+    redeemType === "service"
+      ? redeemService
+        ? calculateRedemptionCost(parsePriceToNumber(redeemService.price))
+        : 0
+      : (redeemProduct?.points_cost ?? 0);
   const pointsBalance = summary?.points_balance ?? 0;
-  const canRedeem = Boolean(redeemService) && redeemCost > 0 && pointsBalance >= redeemCost;
+  const canRedeem = Boolean(redeemName) && redeemCost > 0 && pointsBalance >= redeemCost;
 
   const handleRedeem = async () => {
-    if (!redeemService || !canRedeem) return;
-    if (
-      !window.confirm(
-        `¿Descontar ${redeemCost} puntos por "${redeemService.name}"? Esto no se puede deshacer.`
-      )
-    ) {
+    if (!redeemName || !canRedeem) return;
+    if (!window.confirm(`¿Descontar ${redeemCost} puntos por "${redeemName}"? Esto no se puede deshacer.`)) {
       return;
     }
     setRedeemError(null);
     setRedeemSuccess(null);
-    const result = await redeem(userId, redeemCost, redeemService.name);
+    const result = await redeem(userId, redeemCost, redeemName);
     if (!result.ok) {
       setRedeemError(result.error ?? "No se pudo registrar el canje.");
       return;
     }
     setSummary((prev) => (prev ? { ...prev, points_balance: result.newBalance ?? pointsBalance - redeemCost } : prev));
-    setRedeemSuccess(`Se descontaron ${redeemCost} puntos por "${redeemService.name}".`);
+    setRedeemSuccess(`Se descontaron ${redeemCost} puntos por "${redeemName}".`);
     setRedeemServiceId("");
+    setRedeemProductId("");
   };
 
   useEffect(() => {
@@ -161,25 +171,64 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
             <p className="mt-3 text-xs text-bone/50">
               Para cuando el cliente paga con puntos en la barbería, sin pasar por /reservar.
             </p>
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="flex-1">
-                <label className={labelClass}>Servicio canjeado</label>
-                <select
-                  value={redeemServiceId}
-                  onChange={(e) => {
-                    setRedeemServiceId(e.target.value);
+            <div className="mt-4 flex gap-2">
+              {(["service", "product"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    setRedeemType(type);
                     setRedeemError(null);
                     setRedeemSuccess(null);
                   }}
-                  className={fieldClass}
+                  className={`rounded-sm px-4 py-1.5 text-xs uppercase tracking-widest2 transition-colors ${
+                    redeemType === type ? "bg-gold text-obsidian" : "border border-gold/20 text-bone/60"
+                  }`}
                 >
-                  <option value="">Selecciona...</option>
-                  {liveServices.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} — {s.price}
-                    </option>
-                  ))}
-                </select>
+                  {type === "service" ? "Servicio" : "Producto"}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <label className={labelClass}>
+                  {redeemType === "service" ? "Servicio canjeado" : "Producto canjeado"}
+                </label>
+                {redeemType === "service" ? (
+                  <select
+                    value={redeemServiceId}
+                    onChange={(e) => {
+                      setRedeemServiceId(e.target.value);
+                      setRedeemError(null);
+                      setRedeemSuccess(null);
+                    }}
+                    className={fieldClass}
+                  >
+                    <option value="">Selecciona...</option>
+                    {liveServices.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} — {s.price}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    value={redeemProductId}
+                    onChange={(e) => {
+                      setRedeemProductId(e.target.value);
+                      setRedeemError(null);
+                      setRedeemSuccess(null);
+                    }}
+                    className={fieldClass}
+                  >
+                    <option value="">Selecciona...</option>
+                    {(products ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — {p.points_cost} pts
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <button
                 type="button"
@@ -191,7 +240,7 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
                 <span className="ml-2">Descontar {redeemCost > 0 ? `${redeemCost} pts` : "puntos"}</span>
               </button>
             </div>
-            {redeemService && redeemCost > pointsBalance && (
+            {redeemName && redeemCost > pointsBalance && (
               <p className="mt-2 text-xs text-blood">
                 El cliente solo tiene {pointsBalance} puntos — le faltan {redeemCost - pointsBalance}.
               </p>

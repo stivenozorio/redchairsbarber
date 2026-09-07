@@ -493,12 +493,21 @@ cualquiera descuente puntos de un cliente sin más control abre la
 puerta a errores o abuso difíciles de auditar), desde la ficha del
 cliente (botón "Ver perfil"/"Ver cliente" en `/admin/clientes`, el
 panel administrativo o el panel del barbero — el formulario de canje en
-sí solo aparece si quien lo abre es admin). Se elige el **servicio** del
-catálogo vivo (mismo que usa `/reservar`, con precios actualizados
-desde `/admin/servicios`); el costo en puntos se calcula automático con
-la misma tasa que el canje en línea (`calculateRedemptionCost`, piso(precio
-/ 300)) — no se puede escribir un monto libre, para que la tasa sea
-siempre consistente y no dependa de que el admin haga la cuenta a mano.
+sí solo aparece si quien lo abre es admin). Un selector de
+**Servicio / Producto** decide qué catálogo se muestra:
+
+- **Servicio** — catálogo vivo (mismo que usa `/reservar`, con precios
+  actualizados desde `/admin/servicios`); el costo en puntos se calcula
+  automático con la misma tasa que el canje en línea
+  (`calculateRedemptionCost`, piso(precio / 300)).
+- **Producto** — catálogo vivo de `/admin/productos` (mismo que se ve
+  en `/productos`); el costo en puntos es el que ya tiene guardado ese
+  producto (`points_cost`, editable a mano, redondeado hacia arriba —
+  ver ["Panel administrativo"](#panel-administrativo-fase-2)).
+
+En ningún caso se puede escribir un monto libre — siempre sale del
+catálogo correspondiente, para que la tasa sea consistente y no
+dependa de que el admin haga la cuenta a mano.
 
 Backend: `POST /api/staff/redeem-points` → `admin_redeem_points()`
 (mismo blindaje contra doble descuento que `redeem_points_for_booking`
@@ -654,10 +663,21 @@ Incluye:
 - **Productos** (Fase 4, ajuste) — catálogo de productos de la barbería
   (pomadas, aceites, etc.): nombre, categoría, precio, descripción,
   puntos para canjear y activo/inactivo — igual que Servicios pero sin
-  duración (no ocupa tiempo de agenda). **Primera etapa, deliberadamente
-  incompleta**: todavía no aparecen en `/reservar` ni se pueden canjear
-  con puntos de verdad — el campo ya queda guardado, listo para cuando
-  se active esa fase. Ver `0022_products.sql`.
+  duración (no ocupa tiempo de agenda). Ver `0022_products.sql`.
+
+  **Ya son públicos en `/productos` (Fase 4, ajuste), pero el canje
+  sigue siendo presencial a propósito.** El catálogo (foto, precio,
+  puntos) se ve en `/productos` — con el saldo del socio y un aviso
+  "Ya puedes canjearlo"/"Te faltan N puntos" si tiene sesión — pero esa
+  página es solo para mirar: **no hay botón de canjear en línea**. La
+  razón es que los productos no llevan control de existencias (fue una
+  decisión explícita, ver más abajo); si el canje fuera 100% en línea,
+  dos clientes podrían "canjear" el mismo frasco físico aunque ya no
+  quede stock, sin que el sistema tenga forma de saberlo. El canje real
+  sigue pasando por ["Canje de puntos presencial"](#canje-de-puntos-presencial-fase-4-ajuste),
+  que ahora acepta productos además de servicios — así el admin nunca
+  descuenta puntos por algo que ya no hay físicamente cuando el cliente
+  llega al mostrador.
 
   **El costo en puntos de un producto NO usa la misma fórmula que un
   servicio.** Un servicio siempre calcula piso(precio / 300) — redondea

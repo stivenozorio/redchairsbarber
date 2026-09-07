@@ -70,6 +70,12 @@ export default function Loyalty() {
             >
               Ver cuántos puntos otorga cada servicio <FaArrowRight size={10} />
             </Link>
+            <Link
+              to="/productos"
+              className="mt-3 flex items-center gap-2 text-xs uppercase tracking-widest2 text-gold transition-colors hover:text-gold-light"
+            >
+              Ver productos que puedes canjear con tus puntos <FaArrowRight size={10} />
+            </Link>
           </Reveal>
           <div className="space-y-4">
             {[
