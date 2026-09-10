@@ -75,7 +75,7 @@ Las reservas se validan y se crean como eventos reales en Google
 Calendar, con toda la lógica de Google ejecutándose solo en funciones
 serverless de Vercel (`/api`), nunca en el navegador. **Cada barbero
 tiene su propio calendario, completamente independiente** — Camilo
-Torres y Alejandro Reyes no comparten agenda.
+Torres y Jhon Rojas no comparten agenda.
 
 ### Endpoints (`/api`)
 
@@ -164,7 +164,7 @@ Settings → Environment Variables) y completa:
 | `GOOGLE_CLIENT_SECRET` | Client Secret del mismo OAuth Client |
 | `GOOGLE_REFRESH_TOKEN` | Token de larga duración (ver siguiente sección) |
 | `GOOGLE_CALENDAR_ID_CAMILO` | ID del calendario de Camilo Torres |
-| `GOOGLE_CALENDAR_ID_ALEJANDRO` | ID del calendario de Alejandro Reyes |
+| `GOOGLE_CALENDAR_ID_ALEJANDRO` | ID del calendario del segundo barbero — el nombre de la variable quedó de cuando ese puesto lo tenía Alejandro Reyes; hoy es el calendario de Jhon Rojas, su reemplazo (ver nota más abajo) |
 
 Opcionales: `GOOGLE_CALENDAR_SLOT_DURATION_MINUTES` (fallback interno si
 alguna vez se pide un slot sin duración explícita, por defecto 60) y

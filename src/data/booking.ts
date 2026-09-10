@@ -2,9 +2,16 @@
 // panel del barbero, filtros del admin). Puramente visual: no cambia a
 // quién se le asigna una reserva "Sin preferencia" — eso sigue
 // probando primero con Camilo, ver requestedCandidates en api/book.ts.
+//
+// El id "alejandro" es el puesto/calendario original de Alejandro
+// Reyes; cuando dejó la barbería, Jhon Rojas lo reemplazó reutilizando
+// el mismo id, el mismo calendario de Google y la misma variable de
+// entorno (GOOGLE_CALENDAR_ID_ALEJANDRO) — solo cambia el nombre que
+// se muestra. Ver "Panel administrativo" en el README para el
+// historial completo de este cambio.
 export const BARBERS = [
   { id: "any", name: "Sin preferencia" },
-  { id: "alejandro", name: "Alejandro Reyes" },
+  { id: "alejandro", name: "Jhon Rojas" },
   { id: "camilo", name: "Camilo Torres" },
 ];
 

@@ -156,7 +156,10 @@ test("los barberos coinciden con los calendarios configurables", () => {
   // de ids disponibles.
   const ids = BARBERS.map((b) => b.id);
   assert.deepEqual(new Set(ids), new Set(["any", "camilo", "alejandro"]));
-  assert.equal(BARBERS.find((b) => b.id === "alejandro")?.name, "Alejandro Reyes");
+  // El nombre mostrado para un id puede cambiar con el tiempo (rotación
+  // de personal, ver el comentario de BARBERS) — hoy el puesto "alejandro"
+  // lo tiene Jhon Rojas.
+  assert.equal(BARBERS.find((b) => b.id === "alejandro")?.name, "Jhon Rojas");
 });
 
 test("BARBERS pone a 'Sin preferencia' primero, seguido de los barberos reales", () => {
