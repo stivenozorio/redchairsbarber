@@ -743,10 +743,13 @@ disponibles de verdad aunque el selector las mostrara (ver también la
 Fase 4 de horas cada 30 minutos, arriba). `0016_extend_closing_hour.sql`
 mueve el cierre a `21:00` tanto en los horarios ya sembrados como en el
 horario por defecto de un barbero nuevo.
-- **Barberos** — nombre, orden y activo/inactivo (un barbero inactivo
-  deja de recibir reservas nuevas sin perder su historial). Agregar un
-  barbero *nuevo de verdad* no se puede hacer solo desde aquí: necesita
-  su propio calendario de Google (una variable de entorno más, ver
+- **Barberos** — nombre, orden, activo/inactivo, y a qué cuenta está
+  vinculado cada uno (para que esa persona pueda entrar a `/barbero` —
+  ver ["Panel del barbero"](#panel-del-barbero-fase-3) para el detalle
+  completo de vincular/desvincular). Un barbero inactivo deja de
+  recibir reservas nuevas sin perder su historial. Agregar un barbero
+  *nuevo de verdad* no se puede hacer solo desde aquí: necesita su
+  propio calendario de Google (una variable de entorno más, ver
   arriba) y no lo cubre esta fase.
 
   **No hay botón para borrar un barbero (Fase 4, ajuste), y es
@@ -824,8 +827,28 @@ admin sin barbero vinculado ve un selector para revisar la de
 cualquiera.
 
 Para que un barbero de verdad pueda entrar y que el panel lo acote a
-sus propias citas, hacen falta **dos pasos manuales por cada barbero**,
-igual de únicos que el de volverte admin:
+sus propias citas, hacen falta dos cosas: que su cuenta tenga
+`role = 'barber'`, y que esa cuenta quede vinculada a su fila en
+`barbers` (`barbers.user_id`) — para que el panel y
+`/api/staff/booking-status` sepan que ESA cuenta es Camilo/Alejandro/
+quien sea.
+
+**Ya no hace falta SQL para esto (Fase 4, ajuste): `/admin/barberos`
+tiene un campo "Cuenta de barbero" en cada tarjeta.** El admin escribe
+el correo de una cuenta *ya registrada* (la persona debe haberse
+registrado antes, con Google o con correo/contraseña, como cualquier
+cliente) y le da "Vincular" — eso hace las dos cosas de una vez: le
+pone `role = 'barber'` a esa cuenta y la vincula a esta fila de
+`barbers`. Si el correo no existe, o esa cuenta ya es administrador
+(cambiarla a barbero le quitaría el acceso de admin), el formulario lo
+rechaza con un mensaje explicando por qué — cambiar a un admin a
+barbero solo se puede hacer a mano por SQL, a propósito, para que no
+sea un clic accidental. Si un barbero ya vinculado deja el negocio, el
+mismo lugar tiene un botón "Desvincular" (solo suelta la fila de
+`barbers`, no le quita el rol a la cuenta — eso, si hace falta, sigue
+siendo manual).
+
+Sigue existiendo el camino por SQL si se prefiere:
 
 ```sql
 -- 1. Darle el rol de barbero a su cuenta ya registrada

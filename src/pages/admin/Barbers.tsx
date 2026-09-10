@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { FaCalendarCheck, FaCheck, FaExclamationTriangle, FaIdBadge, FaSpinner } from "react-icons/fa";
+import {
+  FaCalendarCheck,
+  FaCheck,
+  FaExclamationTriangle,
+  FaIdBadge,
+  FaLink,
+  FaSpinner,
+  FaUnlink,
+} from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
 import { fieldClass, labelClass } from "../../lib/ui";
 import BarberProfileModal from "../../components/admin/BarberProfileModal";
@@ -9,6 +17,12 @@ interface BarberRow {
   name: string;
   active: boolean;
   sort_order: number;
+  user_id: string | null;
+}
+
+interface LinkedProfile {
+  email: string;
+  full_name: string | null;
 }
 
 /** Reservas que todavía requieren atención — ni completadas ni
@@ -21,13 +35,17 @@ const ACTIVE_STATUSES = new Set(["pending", "confirmed", "in_progress"]);
 function BarberRowItem({
   barber,
   activeBookings,
+  linkedProfile,
   onSaved,
   onViewProfile,
+  onLinked,
 }: {
   barber: BarberRow;
   activeBookings: number;
+  linkedProfile: LinkedProfile | null;
   onSaved: (updated: BarberRow) => void;
   onViewProfile: () => void;
+  onLinked: (barberId: string, userId: string | null, profile: LinkedProfile | null) => void;
 }) {
   const [name, setName] = useState(barber.name);
   const [active, setActive] = useState(barber.active);
@@ -35,6 +53,10 @@ function BarberRowItem({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+
+  const [linkEmail, setLinkEmail] = useState("");
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const markDirty = <T,>(setter: (v: T) => void) => (v: T) => {
     setter(v);
@@ -49,7 +71,7 @@ function BarberRowItem({
       .from("barbers")
       .update({ name: name.trim(), active, sort_order: Math.round(Number(sortOrder) || 0) })
       .eq("id", barber.id)
-      .select("id, name, active, sort_order")
+      .select("id, name, active, sort_order, user_id")
       .single();
 
     setSaving(false);
@@ -59,6 +81,84 @@ function BarberRowItem({
     }
     onSaved(data as BarberRow);
     setDirty(false);
+  };
+
+  const handleLink = async () => {
+    if (!supabase) return;
+    const email = linkEmail.trim();
+    if (!email) return;
+    setLinking(true);
+    setLinkError(null);
+
+    const { data: match, error: lookupError } = await supabase
+      .from("profiles")
+      .select("id, email, full_name, role")
+      .ilike("email", email)
+      .maybeSingle();
+
+    if (lookupError || !match) {
+      setLinking(false);
+      setLinkError("No existe ninguna cuenta registrada con ese correo. La persona debe crear su cuenta primero.");
+      return;
+    }
+    if (match.role === "admin") {
+      setLinking(false);
+      setLinkError(
+        "Esa cuenta ya es administrador — cambiarla a barbero le quitaría el acceso de admin. Si de verdad quieres esto, hazlo a mano por SQL."
+      );
+      return;
+    }
+    if (
+      !window.confirm(
+        `¿Vincular a ${match.full_name || match.email} como ${barber.name}? Va a poder entrar a /barbero y ver solo sus propias citas.`
+      )
+    ) {
+      setLinking(false);
+      return;
+    }
+
+    const { error: roleError } = await supabase
+      .from("profiles")
+      .update({ role: "barber" })
+      .eq("id", match.id);
+    if (roleError) {
+      setLinking(false);
+      setLinkError(roleError.message);
+      return;
+    }
+
+    const { error: linkErr } = await supabase.from("barbers").update({ user_id: match.id }).eq("id", barber.id);
+    setLinking(false);
+    if (linkErr) {
+      setLinkError(
+        linkErr.message.includes("duplicate")
+          ? "Esa cuenta ya está vinculada a otro barbero."
+          : linkErr.message
+      );
+      return;
+    }
+    onLinked(barber.id, match.id, { email: match.email, full_name: match.full_name });
+    setLinkEmail("");
+  };
+
+  const handleUnlink = async () => {
+    if (!supabase) return;
+    if (
+      !window.confirm(
+        `¿Desvincular a ${linkedProfile?.full_name || linkedProfile?.email} de ${barber.name}? Ya no va a poder entrar a /barbero como este barbero (su cuenta sigue existiendo, con rol de barbero, solo que sin vincular a ninguno).`
+      )
+    ) {
+      return;
+    }
+    setLinking(true);
+    setLinkError(null);
+    const { error: unlinkErr } = await supabase.from("barbers").update({ user_id: null }).eq("id", barber.id);
+    setLinking(false);
+    if (unlinkErr) {
+      setLinkError(unlinkErr.message);
+      return;
+    }
+    onLinked(barber.id, null, null);
   };
 
   return (
@@ -122,6 +222,53 @@ function BarberRowItem({
           <FaExclamationTriangle size={10} /> {error}
         </p>
       )}
+
+      <div className="mt-4 border-t border-gold/10 pt-4">
+        <label className={labelClass}>Cuenta de barbero (acceso a /barbero)</label>
+        {linkedProfile ? (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-bone/70">
+              Vinculada a <span className="text-ivory">{linkedProfile.full_name || linkedProfile.email}</span>{" "}
+              <span className="text-bone/40">({linkedProfile.email})</span>
+            </p>
+            <button
+              type="button"
+              disabled={linking}
+              onClick={() => void handleUnlink()}
+              className="flex shrink-0 items-center gap-1.5 text-xs uppercase tracking-widest2 text-blood/70 transition-colors hover:text-blood disabled:opacity-50"
+            >
+              {linking ? <FaSpinner className="animate-spin" size={11} /> : <FaUnlink size={11} />} Desvincular
+            </button>
+          </div>
+        ) : (
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+            <input
+              type="email"
+              value={linkEmail}
+              onChange={(e) => {
+                setLinkEmail(e.target.value);
+                setLinkError(null);
+              }}
+              placeholder="correo de la cuenta ya registrada"
+              className={`${fieldClass} flex-1`}
+            />
+            <button
+              type="button"
+              disabled={linking || !linkEmail.trim()}
+              onClick={() => void handleLink()}
+              className="btn-outline shrink-0 !py-3 text-xs disabled:opacity-40"
+            >
+              {linking ? <FaSpinner className="animate-spin" /> : <FaLink size={11} />}
+              <span className="ml-2">Vincular</span>
+            </button>
+          </div>
+        )}
+        {linkError && (
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-blood">
+            <FaExclamationTriangle size={10} /> {linkError}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -140,6 +287,11 @@ export default function AdminBarbers() {
   // transición cuando uno se va y entra otro (a quién hay que
   // reasignar o avisarle antes de desactivarlo).
   const [activeCounts, setActiveCounts] = useState<Record<string, number>>({});
+  // Cuenta vinculada de cada barbero (barbers.user_id), para mostrar
+  // quién es y poder vincular/desvincular sin tocar SQL — indexado por
+  // profiles.id, no por barbero, porque se trae con una sola consulta
+  // aparte (mismo patrón de dos consultas que el resto del panel).
+  const [linkedProfiles, setLinkedProfiles] = useState<Record<string, LinkedProfile>>({});
 
   const load = useCallback(async () => {
     if (!supabase) {
@@ -149,7 +301,10 @@ export default function AdminBarbers() {
     setLoading(true);
     setError(null);
     const [barbersRes, activeBookingsRes] = await Promise.all([
-      supabase.from("barbers").select("id, name, active, sort_order").order("sort_order", { ascending: true }),
+      supabase
+        .from("barbers")
+        .select("id, name, active, sort_order, user_id")
+        .order("sort_order", { ascending: true }),
       supabase
         .from("bookings")
         .select("barber_id")
@@ -157,10 +312,11 @@ export default function AdminBarbers() {
         .in("status", [...ACTIVE_STATUSES]),
     ]);
 
+    const barberRows = (barbersRes.data as BarberRow[]) ?? [];
     if (barbersRes.error) {
       setError(barbersRes.error.message);
     } else {
-      setBarbers((barbersRes.data as BarberRow[]) ?? []);
+      setBarbers(barberRows);
     }
 
     const counts: Record<string, number> = {};
@@ -168,6 +324,22 @@ export default function AdminBarbers() {
       counts[row.barber_id] = (counts[row.barber_id] ?? 0) + 1;
     }
     setActiveCounts(counts);
+
+    const linkedIds = barberRows.map((b) => b.user_id).filter((id): id is string => Boolean(id));
+    if (linkedIds.length > 0) {
+      const { data: profileRows } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+        .in("id", linkedIds);
+      const map: Record<string, LinkedProfile> = {};
+      for (const row of (profileRows as { id: string; email: string; full_name: string | null }[]) ?? []) {
+        map[row.id] = { email: row.email, full_name: row.full_name };
+      }
+      setLinkedProfiles(map);
+    } else {
+      setLinkedProfiles({});
+    }
+
     setLoading(false);
   }, []);
 
@@ -177,6 +349,13 @@ export default function AdminBarbers() {
 
   const handleSaved = (updated: BarberRow) => {
     setBarbers((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+  };
+
+  const handleLinked = (barberId: string, userId: string | null, profile: LinkedProfile | null) => {
+    setBarbers((prev) => prev.map((b) => (b.id === barberId ? { ...b, user_id: userId } : b)));
+    if (userId && profile) {
+      setLinkedProfiles((prev) => ({ ...prev, [userId]: profile }));
+    }
   };
 
   const visibleBarbers = showInactive ? barbers : barbers.filter((b) => b.active);
@@ -220,8 +399,10 @@ export default function AdminBarbers() {
               key={barber.id}
               barber={barber}
               activeBookings={activeCounts[barber.id] ?? 0}
+              linkedProfile={barber.user_id ? (linkedProfiles[barber.user_id] ?? null) : null}
               onSaved={handleSaved}
               onViewProfile={() => setViewingBarber(barber)}
+              onLinked={handleLinked}
             />
           ))
         )}
