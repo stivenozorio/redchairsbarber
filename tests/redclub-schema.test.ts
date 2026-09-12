@@ -34,6 +34,7 @@ const adminRedeemPoints = readMigration("0021_admin_redeem_points.sql");
 const products = readMigration("0022_products.sql");
 const productsImages = readMigration("0023_products_images.sql");
 const productsSeed = readMigration("0024_products_seed.sql");
+const productRedemptions = readMigration("0025_product_redemptions.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -1021,4 +1022,96 @@ test("0024 no borra ni pisa productos ya cargados a mano", () => {
     "el seed debe ser solo aditivo — on conflict do nothing, nunca update"
   );
   assert.ok(productsSeed.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (ajuste): 0025 canje de productos EN LÍNEA ---
+//
+// A pedido explícito del negocio ("siempre tenemos existencias"), el
+// cliente puede descontar sus propios puntos por un producto sin
+// pasar por el mostrador. Reutiliza reward_redemptions (Fase 5, ya en
+// el esquema desde 0001) en vez de una tabla paralela.
+
+test("0025 permite que reward_redemptions apunte a un producto en vez de una recompensa", () => {
+  assert.match(productRedemptions, /alter column reward_id drop not null/);
+  assert.match(productRedemptions, /add column if not exists product_id uuid references public\.products \(id\)/);
+  assert.match(productRedemptions, /add constraint reward_redemptions_target_check/);
+  assert.match(
+    productRedemptions,
+    /check \(\s*\n\s*\(reward_id is not null and product_id is null\)\s*\n\s*or \(reward_id is null and product_id is not null\)/
+  );
+});
+
+test("0025 redeem_product_for_points bloquea por usuario ANTES de leer el saldo", () => {
+  const fnStart = productRedemptions.indexOf("create or replace function public.redeem_product_for_points");
+  const fnEnd = productRedemptions.indexOf("$$;", fnStart);
+  const fnBody = productRedemptions.slice(fnStart, fnEnd);
+  const lockIdx = fnBody.indexOf("pg_advisory_xact_lock");
+  const balanceIdx = fnBody.indexOf("coalesce(sum(amount), 0)");
+  assert.ok(lockIdx !== -1 && balanceIdx !== -1 && lockIdx < balanceIdx);
+});
+
+test("0025 redeem_product_for_points rechaza un producto inactivo o inexistente", () => {
+  const fnStart = productRedemptions.indexOf("create or replace function public.redeem_product_for_points");
+  const fnEnd = productRedemptions.indexOf("$$;", fnStart);
+  const fnBody = productRedemptions.slice(fnStart, fnEnd);
+  assert.match(fnBody, /if not found or not v_active then/);
+});
+
+test("0025 redeem_product_for_points inserta el descuento con reason 'reward_redemption' ligado al redemption_id nuevo", () => {
+  const fnStart = productRedemptions.indexOf("create or replace function public.redeem_product_for_points");
+  const fnEnd = productRedemptions.indexOf("$$;", fnStart);
+  const fnBody = productRedemptions.slice(fnStart, fnEnd);
+  assert.match(fnBody, /insert into public\.reward_redemptions .*status\)/s);
+  assert.match(fnBody, /'pending'/);
+  assert.match(fnBody, /insert into public\.points_transactions .*redemption_id\)/s);
+  assert.match(fnBody, /'reward_redemption'/);
+});
+
+test("0025 fulfill_product_redemption y cancel_product_redemption solo avanzan un canje 'pending' (protección contra doble clic)", () => {
+  for (const fnName of ["fulfill_product_redemption", "cancel_product_redemption"]) {
+    const fnStart = productRedemptions.indexOf(`create or replace function public.${fnName}`);
+    const fnEnd = productRedemptions.indexOf("$$;", fnStart);
+    const fnBody = productRedemptions.slice(fnStart, fnEnd);
+    assert.match(fnBody, /where id = p_redemption_id and status = 'pending'/, `${fnName} no filtra por status pendiente`);
+    assert.match(fnBody, /if not found then/, `${fnName} no verifica si la actualización afectó alguna fila`);
+  }
+});
+
+test("0025 cancel_product_redemption devuelve los puntos (amount positivo, reason redemption_refund)", () => {
+  const fnStart = productRedemptions.indexOf("create or replace function public.cancel_product_redemption");
+  const fnEnd = productRedemptions.indexOf("$$;", fnStart);
+  const fnBody = productRedemptions.slice(fnStart, fnEnd);
+  assert.match(fnBody, /v_user_id,\s*\n\s*v_points_spent,\s*\n\s*'redemption_refund'/);
+});
+
+test("0025 revoca EXECUTE de public y solo lo concede a service_role en las tres funciones nuevas", () => {
+  for (const [fnName, signature] of [
+    ["redeem_product_for_points", "uuid, uuid"],
+    ["fulfill_product_redemption", "uuid, uuid"],
+    ["cancel_product_redemption", "uuid, uuid"],
+  ] as const) {
+    assert.match(
+      productRedemptions,
+      new RegExp(`revoke all on function public\\.${fnName}\\(${signature}\\) from public`)
+    );
+    assert.match(
+      productRedemptions,
+      new RegExp(`grant execute on function public\\.${fnName}\\(${signature}\\) to service_role`)
+    );
+  }
+});
+
+test("0025 protege contra doble reembolso con un índice único (mismo patrón que 0019)", () => {
+  assert.match(
+    productRedemptions,
+    /create unique index if not exists points_tx_one_refund_per_redemption_idx\s*\n\s*on public\.points_transactions \(redemption_id\)\s*\n\s*where reason = 'redemption_refund' and redemption_id is not null/
+  );
+});
+
+test("0025 no borra ni pisa canjes o transacciones de puntos existentes", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b|\bupdate public\.points_transactions\b/i.test(productRedemptions),
+    "no debe modificar datos ya existentes — solo agrega columnas/funciones e inserta filas nuevas hacia adelante"
+  );
+  assert.ok(productRedemptions.includes("notify pgrst, 'reload schema'"));
 });

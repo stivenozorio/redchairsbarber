@@ -397,3 +397,42 @@ select id, name, price_cop, points_cost
 from public.products
 where points_cost = 0
 order by name;
+
+-- 25. Canje de productos EN LÍNEA (Fase 4, ajuste) -----------------------
+
+-- 25a. Las tres funciones nuevas deben existir.
+select
+  case when (
+    select count(*) from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('redeem_product_for_points', 'fulfill_product_redemption', 'cancel_product_redemption')
+  ) = 3 then '✅ OK' else '❌ FALTA — ejecuta 0025 (ver sección 25)' end as funciones_canje_productos;
+
+-- 25b. Canjes de producto pendientes de entregar en el local.
+select
+  rr.id, p_.full_name, p_.email, pr.name as product, rr.points_spent, rr.created_at
+from public.reward_redemptions rr
+join public.profiles p_ on p_.id = rr.user_id
+join public.products pr on pr.id = rr.product_id
+where rr.status = 'pending' and rr.product_id is not null
+order by rr.created_at asc;
+
+-- 25c. Integridad: todo canje de producto debe tener su descuento en
+-- points_transactions (el mismo redemption_id, monto negativo).
+select rr.id, rr.user_id, rr.points_spent
+from public.reward_redemptions rr
+where rr.product_id is not null
+  and not exists (
+    select 1 from public.points_transactions pt
+    where pt.redemption_id = rr.id and pt.reason = 'reward_redemption' and pt.amount < 0
+  );
+
+-- 25d. Cancelados sin su reembolso correspondiente (no debería devolver filas).
+select rr.id, rr.user_id, rr.points_spent
+from public.reward_redemptions rr
+where rr.product_id is not null and rr.status = 'cancelled'
+  and not exists (
+    select 1 from public.points_transactions pt
+    where pt.redemption_id = rr.id and pt.reason = 'redemption_refund' and pt.amount > 0
+  );

@@ -104,6 +104,12 @@ Torres y Jhon Rojas no comparten agenda.
   evento para liberar el horario) — ver [Panel del barbero](#panel-del-barbero-fase-3).
 - `POST /api/staff/block-slot` — bloquea un horario de un barbero para
   un cliente presencial — ver [Bloquear horarios](#bloquear-horarios-para-clientes-presenciales-fase-4).
+- `POST /api/redeem-product` — el cliente canjea un producto con sus
+  propios puntos, sin pasar por el mostrador — ver
+  [Canje de productos en línea](#canje-de-productos-en-línea-fase-4-ajuste).
+- `POST /api/staff/fulfill-product-redemption` / `POST /api/staff/cancel-product-redemption` —
+  confirmar entrega (cualquier staff) o cancelar y devolver puntos
+  (solo admin) — mismo lugar del README de arriba.
 
 `/api/availability` y `/api/book` ya no usan un horario ni un catálogo
 de servicios fijos: consultan `api/_lib/scheduleRepo.ts` y
@@ -524,6 +530,54 @@ puramente un movimiento en el ledger de puntos, igual que otorgarlos:
 lo único que hace es descontar el saldo del cliente y dejar constancia
 de qué se le entregó a cambio.
 
+### Canje de productos en línea (Fase 4, ajuste)
+
+Migración `0025_product_redemptions.sql`. Desde `/productos`, un
+cliente con sesión y puntos suficientes puede canjear un producto él
+mismo, sin pasar por el mostrador ni por un admin. **Sin control de
+existencias, a propósito** (decisión explícita del negocio) — ver la
+nota de arriba en "Panel administrativo".
+
+Reutiliza `reward_redemptions` (existía desde 0001, pensada para la
+Fase 5 con un catálogo `rewards` que nunca se construyó) en vez de una
+tabla paralela: se le agregó `product_id` (antes solo admitía
+`reward_id`), con un `check` que exige que cada fila apunte a
+exactamente una de las dos cosas.
+
+**Flujo (tres funciones nuevas, cada una con su propio endpoint —
+ninguna se llama directo desde el navegador):**
+
+1. **Canjear** — `POST /api/redeem-product` (requiere sesión, la llama
+   el cliente) → `redeem_product_for_points()`: mismo blindaje de
+   siempre contra doble descuento (bloqueo por usuario con
+   `pg_advisory_xact_lock`, saldo recalculado DENTRO del bloqueo).
+   Descuenta los puntos (motivo `'reward_redemption'`, igual que
+   cualquier otro canje) y crea la fila en `reward_redemptions` con
+   `status = 'pending'` — el producto queda pendiente de recoger.
+2. **Entregar** — `POST /api/staff/fulfill-product-redemption`
+   (cualquier barbero o admin) → `fulfill_product_redemption()`: solo
+   confirma "sí, ya se lo di" (`status = 'fulfilled'`). No toca
+   puntos, así que no hace falta ser admin.
+3. **Cancelar y devolver puntos** — `POST /api/staff/cancel-product-redemption`
+   (**solo admin**, mismo criterio que el canje presencial) →
+   `cancel_product_redemption()`: le devuelve los puntos al cliente
+   (motivo `'redemption_refund'`, mismo patrón que una reserva
+   canjeada que se cancela) y marca `status = 'cancelled'`. La
+   actualización es `where status = 'pending'` — si dos clics casi
+   simultáneos intentan cancelar lo mismo, el segundo encuentra la fila
+   ya en otro estado y no hace nada (mismo blindaje contra doble
+   reembolso que ya existía para reservas, más un índice único de
+   respaldo: `points_tx_one_refund_per_redemption_idx`).
+
+`/admin/canjes` lista los canjes de producto (filtrable por estado,
+"Pendiente de recoger" por defecto) con el botón **"Entregar"** y,
+solo si eres admin, **"Cancelar y devolver puntos"**. Es una pantalla
+del panel administrativo (`ProtectedRoute requireAdmin`), así que hoy
+**solo el admin puede llegar a esta pantalla** — el backend ya permite
+que cualquier barbero confirme una entrega, pero no hay todavía un
+lugar en `/barbero` para hacerlo; si hace falta, es una extensión
+futura sencilla (mismo hook, otra pantalla), no un cambio de permisos.
+
 ### Cumpleaños del socio (Fase 4, ajuste)
 
 `profiles.birthday` existía desde la Fase 1 (pensado para el motivo
@@ -665,19 +719,28 @@ Incluye:
   puntos para canjear y activo/inactivo — igual que Servicios pero sin
   duración (no ocupa tiempo de agenda). Ver `0022_products.sql`.
 
-  **Ya son públicos en `/productos` (Fase 4, ajuste), pero el canje
-  sigue siendo presencial a propósito.** El catálogo (foto, precio,
-  puntos) se ve en `/productos` — con el saldo del socio y un aviso
-  "Ya puedes canjearlo"/"Te faltan N puntos" si tiene sesión — pero esa
-  página es solo para mirar: **no hay botón de canjear en línea**. La
-  razón es que los productos no llevan control de existencias (fue una
-  decisión explícita, ver más abajo); si el canje fuera 100% en línea,
-  dos clientes podrían "canjear" el mismo frasco físico aunque ya no
-  quede stock, sin que el sistema tenga forma de saberlo. El canje real
-  sigue pasando por ["Canje de puntos presencial"](#canje-de-puntos-presencial-fase-4-ajuste),
-  que ahora acepta productos además de servicios — así el admin nunca
-  descuenta puntos por algo que ya no hay físicamente cuando el cliente
-  llega al mostrador.
+  **Son públicos en `/productos`, con canje EN LÍNEA (Fase 4, ajuste).**
+  El catálogo (foto, precio, puntos) se ve en `/productos` — con el
+  saldo del socio y un botón **"Canjear"** cuando tiene puntos
+  suficientes. A diferencia de un servicio (que se canjea al crear una
+  reserva) o del canje presencial (que inicia un admin), aquí el
+  cliente descuenta sus propios puntos directo desde el sitio, sin que
+  nadie del local lo confirme antes.
+
+  **Esto es a propósito, sin control de existencias — decisión
+  explícita del negocio ("siempre tenemos existencias"), no un
+  descuido del sistema.** El canje nunca verifica stock porque el
+  catálogo de productos no lo tiene: si dos clientes canjean el mismo
+  producto casi al mismo tiempo, el sistema los deja a los dos, aunque
+  solo quede una unidad física. Ver
+  ["Canje de productos en línea"](#canje-de-productos-en-línea-fase-4-ajuste)
+  más abajo para el flujo completo (pendiente → entregado/cancelado) y
+  `0025_product_redemptions.sql`.
+
+  Sigue existiendo, aparte, el canje presencial (["Canje de puntos presencial"](#canje-de-puntos-presencial-fase-4-ajuste)) —
+  para cuando el cliente prefiere que el admin se lo descuente
+  directamente en el mostrador en vez de hacerlo él mismo desde el
+  sitio.
 
   **El costo en puntos de un producto NO usa la misma fórmula que un
   servicio.** Un servicio siempre calcula piso(precio / 300) — redondea
@@ -776,6 +839,9 @@ horario por defecto de un barbero nuevo.
 - **Estadísticas** (Fase 4, ajuste) — ver
   ["Estadísticas del club"](#estadísticas-del-club-fase-4-ajuste) más
   abajo.
+- **Canjes** (Fase 4, ajuste) — productos que un cliente canjeó en
+  línea desde `/productos`, pendientes de entregar en el local. Ver
+  ["Canje de productos en línea"](#canje-de-productos-en-línea-fase-4-ajuste).
 
   **El campo "Orden" de esta pantalla solo ordena esta misma lista**,
   no el selector de barbero que ve el cliente en `/reservar` ni el del
@@ -1209,6 +1275,13 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     una restricción única sobre `name` para que el seed sea repetible,
     y siembra el catálogo real de 12 productos (`on conflict (name) do
     nothing`, no pisa nada ya cargado a mano).
+25. `0025_product_redemptions.sql` — canje de productos EN LÍNEA: le
+    agrega `product_id` a `reward_redemptions` (Fase 5, hasta ahora sin
+    usar) y tres funciones — `redeem_product_for_points()` (el cliente
+    descuenta sus propios puntos), `fulfill_product_redemption()`
+    (staff confirma la entrega), `cancel_product_redemption()` (solo
+    admin, devuelve los puntos). Ver
+    ["Canje de productos en línea"](#canje-de-productos-en-línea-fase-4-ajuste).
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

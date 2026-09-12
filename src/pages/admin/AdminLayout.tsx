@@ -6,6 +6,7 @@ const TABS = [
   { to: "/admin/clientes", label: "Clientes" },
   { to: "/admin/servicios", label: "Servicios" },
   { to: "/admin/productos", label: "Productos" },
+  { to: "/admin/canjes", label: "Canjes" },
   { to: "/admin/horarios", label: "Horarios" },
   { to: "/admin/barberos", label: "Barberos" },
   { to: "/admin/estadisticas", label: "Estadísticas" },

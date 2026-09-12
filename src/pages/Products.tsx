@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { FaCheckCircle, FaCoins, FaSpinner } from "react-icons/fa";
+import { FaCheckCircle, FaCoins, FaExchangeAlt, FaExclamationTriangle, FaSpinner } from "react-icons/fa";
 import PageHero from "../components/PageHero";
 import SectionHeading from "../components/SectionHeading";
 import Reveal from "../components/Reveal";
 import { useAuth } from "../auth/useAuth";
 import { useMemberSummary } from "../hooks/useMemberSummary";
 import { useActiveProducts, type ActiveProduct } from "../hooks/useActiveProducts";
+import { useRedeemProduct } from "../hooks/useRedeemProduct";
 import { formatCop } from "../lib/format";
 
 const UNCATEGORIZED = "Otros";
@@ -24,29 +26,60 @@ function groupByCategory(products: ActiveProduct[]): { category: string; product
   return order.map((category) => ({ category, products: byCategory.get(category) ?? [] }));
 }
 
+interface Feedback {
+  type: "success" | "error";
+  message: string;
+}
+
 /**
- * Catálogo público de productos — solo para conocer qué hay y cuántos
- * puntos cuesta cada uno. El canje en sí NO se hace desde aquí: pasa
- * por el mostrador (el administrador lo registra con "Canjear puntos
- * presencial" cuando el cliente ya está en el local a recoger el
- * producto) — a propósito, porque el catálogo no lleva control de
- * existencias todavía y así nunca se descuentan puntos por algo que ya
- * no hay physicamente disponible.
+ * Catálogo público de productos, con canje EN LÍNEA: el cliente
+ * descuenta sus propios puntos desde aquí, sin pasar por el
+ * mostrador. A pedido explícito del negocio ("siempre tenemos
+ * existencias") — no hay control de inventario, así que el canje
+ * nunca verifica stock. El producto queda pendiente de recoger en el
+ * local (reward_redemptions, status 'pending'); un miembro del staff
+ * lo marca como entregado desde /admin/canjes.
  */
 export default function Products() {
   const { session, profile } = useAuth();
-  const { summary } = useMemberSummary(profile?.id);
+  const { summary, reload: reloadSummary } = useMemberSummary(profile?.id);
   const products = useActiveProducts();
+  const { redeem, redeeming } = useRedeemProduct();
+  const [redeemingId, setRedeemingId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Record<string, Feedback>>({});
   const pointsBalance = summary?.points_balance ?? 0;
 
   const groups = products ? groupByCategory(products) : [];
+
+  const handleRedeem = async (product: ActiveProduct) => {
+    if (
+      !window.confirm(
+        `¿Canjear "${product.name}" por ${product.points_cost} puntos? Podrás recogerlo en el local. Esto no se puede deshacer.`
+      )
+    ) {
+      return;
+    }
+    setRedeemingId(product.id);
+    setFeedback((prev) => ({ ...prev, [product.id]: undefined as unknown as Feedback }));
+    const result = await redeem(product.id);
+    setRedeemingId(null);
+    if (!result.ok) {
+      setFeedback((prev) => ({ ...prev, [product.id]: { type: "error", message: result.error ?? "No se pudo procesar el canje." } }));
+      return;
+    }
+    await reloadSummary();
+    setFeedback((prev) => ({
+      ...prev,
+      [product.id]: { type: "success", message: "¡Canjeado! Pasa por el local a recogerlo." },
+    }));
+  };
 
   return (
     <div>
       <PageHero
         eyebrow="RED CLUB"
         title="Productos"
-        subtitle="Pomadas, tratamientos y kits para seguir el cuidado desde casa — cada uno se puede pagar en efectivo o canjear con tus puntos RED CLUB en el local."
+        subtitle="Pomadas, tratamientos y kits para seguir el cuidado desde casa — cada uno se puede pagar en efectivo o canjear con tus puntos RED CLUB."
       />
 
       <section className="border-b border-gold/10 bg-obsidian py-24">
@@ -76,7 +109,9 @@ export default function Products() {
                 <SectionHeading eyebrow="Cuidado en casa" title={group.category} align="left" />
                 <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {group.products.map((product, i) => {
-                    const canRedeem = session && pointsBalance >= product.points_cost;
+                    const canRedeem = Boolean(session) && pointsBalance >= product.points_cost;
+                    const isRedeeming = redeemingId === product.id;
+                    const result = feedback[product.id];
                     return (
                       <Reveal key={product.id} delay={0.05 * (i % 3)}>
                         <div className="card-lux flex h-full flex-col overflow-hidden !p-0">
@@ -104,20 +139,42 @@ export default function Products() {
                                 <FaCoins size={12} /> {product.points_cost}
                               </span>
                             </div>
-                            {session && (
-                              <p
-                                className={`mt-3 flex items-center gap-1.5 text-xs uppercase tracking-widest2 ${
-                                  canRedeem ? "text-gold" : "text-bone/40"
-                                }`}
-                              >
-                                {canRedeem ? (
-                                  <>
-                                    <FaCheckCircle size={10} /> Ya puedes canjearlo
-                                  </>
-                                ) : (
-                                  `Te faltan ${product.points_cost - pointsBalance} puntos`
+
+                            {session ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={!canRedeem || redeeming}
+                                  onClick={() => void handleRedeem(product)}
+                                  className="btn-gold mt-4 !py-2.5 text-xs disabled:opacity-40"
+                                >
+                                  {isRedeeming ? (
+                                    <FaSpinner className="animate-spin" />
+                                  ) : (
+                                    <FaExchangeAlt size={11} />
+                                  )}
+                                  <span className="ml-2">
+                                    {canRedeem ? "Canjear" : `Te faltan ${product.points_cost - pointsBalance} pts`}
+                                  </span>
+                                </button>
+                                {result?.type === "success" && (
+                                  <p className="mt-2 flex items-center gap-1.5 text-xs text-gold">
+                                    <FaCheckCircle size={10} /> {result.message}
+                                  </p>
                                 )}
-                              </p>
+                                {result?.type === "error" && (
+                                  <p className="mt-2 flex items-center gap-1.5 text-xs text-blood">
+                                    <FaExclamationTriangle size={10} /> {result.message}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <Link
+                                to="/club/entrar"
+                                className="mt-4 flex items-center justify-center gap-1.5 text-xs uppercase tracking-widest2 text-gold/80 transition-colors hover:text-gold"
+                              >
+                                Inicia sesión para canjear
+                              </Link>
                             )}
                           </div>
                         </div>
@@ -135,11 +192,11 @@ export default function Products() {
         <div className="container-lux text-center">
           <Reveal>
             <h2 className="heading-lg">
-              ¿Cómo <span className="text-gold">canjeo</span> un producto?
+              ¿Cómo <span className="text-gold">recojo</span> lo que canjeé?
             </h2>
             <p className="body-muted mx-auto mt-5 max-w-xl text-lg">
-              El canje se hace en el local, no en línea: coméntaselo a tu barbero en tu próxima
-              visita y ahí se descuentan tus puntos.
+              El canje descuenta tus puntos al instante — solo pasa por el local en tu próxima
+              visita a recoger el producto.
             </p>
             <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
               <Link to="/reservar" className="btn-gold">

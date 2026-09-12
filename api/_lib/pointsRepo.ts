@@ -103,3 +103,120 @@ export async function adminRedeemPoints(
     return { ok: false, newBalance: null, error: "No se pudo procesar el canje de puntos." };
   }
 }
+
+export interface RedeemProductResult {
+  ok: boolean;
+  newBalance: number | null;
+  redemptionId: string | null;
+  error: string | null;
+}
+
+/**
+ * Canje de un PRODUCTO en línea, iniciado por el propio cliente desde
+ * /productos — sin pasar por el mostrador. Llama a
+ * `redeem_product_for_points()` (migración 0025_product_redemptions.sql),
+ * mismo blindaje de siempre (bloqueo por usuario, saldo recalculado
+ * dentro del bloqueo). Deja una fila en `reward_redemptions` con
+ * status 'pending': el producto queda pendiente de entregar en el
+ * local, no se envía a ningún lado.
+ */
+export async function redeemProductForPoints(
+  userId: string,
+  productId: string
+): Promise<RedeemProductResult> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return { ok: false, newBalance: null, redemptionId: null, error: "Supabase no está configurado." };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .rpc("redeem_product_for_points", { p_user_id: userId, p_product_id: productId })
+      .single();
+
+    if (error) {
+      console.error("Error inesperado canjeando un producto:", error);
+      return { ok: false, newBalance: null, redemptionId: null, error: "No se pudo procesar el canje." };
+    }
+
+    const result = data as {
+      success: boolean;
+      new_balance: number | null;
+      error_message: string | null;
+      redemption_id: string | null;
+    };
+    return {
+      ok: result.success,
+      newBalance: result.new_balance,
+      redemptionId: result.redemption_id,
+      error: result.success ? null : (result.error_message ?? "Saldo de puntos insuficiente."),
+    };
+  } catch (error) {
+    console.error("Error inesperado canjeando un producto:", error);
+    return { ok: false, newBalance: null, redemptionId: null, error: "No se pudo procesar el canje." };
+  }
+}
+
+export interface RedemptionActionResult {
+  ok: boolean;
+  error: string | null;
+}
+
+/** Un miembro del staff (barbero o admin) confirma que el cliente ya
+ * recogió su producto canjeado. No toca puntos. */
+export async function fulfillProductRedemption(
+  staffId: string,
+  redemptionId: string
+): Promise<RedemptionActionResult> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { ok: false, error: "Supabase no está configurado." };
+
+  try {
+    const { data, error } = await supabase
+      .rpc("fulfill_product_redemption", { p_staff_id: staffId, p_redemption_id: redemptionId })
+      .single();
+
+    if (error) {
+      console.error("Error inesperado marcando un canje como entregado:", error);
+      return { ok: false, error: "No se pudo registrar la entrega." };
+    }
+    const result = data as { success: boolean; error_message: string | null };
+    return {
+      ok: result.success,
+      error: result.success ? null : (result.error_message ?? "No se pudo registrar la entrega."),
+    };
+  } catch (error) {
+    console.error("Error inesperado marcando un canje como entregado:", error);
+    return { ok: false, error: "No se pudo registrar la entrega." };
+  }
+}
+
+/** Solo un administrador: cancela un canje de producto pendiente y le
+ * devuelve los puntos al cliente (reason 'redemption_refund', mismo
+ * patrón que una reserva canjeada que se cancela). */
+export async function cancelProductRedemption(
+  adminId: string,
+  redemptionId: string
+): Promise<RedemptionActionResult> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { ok: false, error: "Supabase no está configurado." };
+
+  try {
+    const { data, error } = await supabase
+      .rpc("cancel_product_redemption", { p_admin_id: adminId, p_redemption_id: redemptionId })
+      .single();
+
+    if (error) {
+      console.error("Error inesperado cancelando un canje de producto:", error);
+      return { ok: false, error: "No se pudo cancelar el canje." };
+    }
+    const result = data as { success: boolean; error_message: string | null };
+    return {
+      ok: result.success,
+      error: result.success ? null : (result.error_message ?? "No se pudo cancelar el canje."),
+    };
+  } catch (error) {
+    console.error("Error inesperado cancelando un canje de producto:", error);
+    return { ok: false, error: "No se pudo cancelar el canje." };
+  }
+}
