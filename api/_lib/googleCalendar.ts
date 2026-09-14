@@ -48,8 +48,8 @@ export class GoogleCalendarConfigError extends Error {
 }
 
 /** Names of required env vars that are unset or blank, right now. Exposed
- * so /api/calendar-health can report status without needing a full
- * assertEnv() throw/catch round-trip. */
+ * so /api/health (?calendar=1) can report status without needing a
+ * full assertEnv() throw/catch round-trip. */
 export function getMissingEnvVars(): string[] {
   return REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
 }

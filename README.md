@@ -92,11 +92,13 @@ Torres y Jhon Rojas no comparten agenda.
   de `barberId`.
 - `POST|PATCH /api/reschedule` — lee la duración del evento existente,
   valida el nuevo horario y lo mueve, sin cambiar su duración.
-- `GET /api/calendar-health` — diagnóstico de solo lectura: reporta qué
-  variables de entorno faltan (nunca sus valores) y, si las 5 están
-  presentes, si cada calendario de barbero es válido y accesible con
-  las credenciales actuales. No crea, modifica ni elimina nada — útil
-  para confirmar la configuración sin depender de los logs de Vercel.
+- `GET /api/health?calendar=1` — el chequeo de Google Calendar (¿qué
+  variables de entorno faltan, y si las 5 están presentes, si cada
+  calendario de barbero es válido y accesible con las credenciales
+  actuales?) vive dentro de `/api/health`, detrás de ese parámetro
+  opcional — antes era un endpoint aparte (`/api/calendar-health`), se
+  fusionó por el límite de funciones serverless (ver más abajo). No
+  crea, modifica ni elimina nada.
 - `POST /api/staff/booking-status` — cambia el estado de una reserva.
   Lo usan el panel administrativo (`role = 'admin'`, cualquier reserva)
   y el panel del barbero (`role = 'barber'`, solo las suyas). Solo
@@ -107,9 +109,24 @@ Torres y Jhon Rojas no comparten agenda.
 - `POST /api/redeem-product` — el cliente canjea un producto con sus
   propios puntos, sin pasar por el mostrador — ver
   [Canje de productos en línea](#canje-de-productos-en-línea-fase-4-ajuste).
-- `POST /api/staff/fulfill-product-redemption` / `POST /api/staff/cancel-product-redemption` —
+- `POST /api/staff/product-redemption` (`action: "fulfill" | "cancel"`) —
   confirmar entrega (cualquier staff) o cancelar y devolver puntos
   (solo admin) — mismo lugar del README de arriba.
+
+**Límite de funciones serverless (plan Hobby de Vercel).** Cada
+archivo bajo `/api` (menos `_lib/`, que es código compartido, no una
+ruta) es UNA función serverless, y el plan Hobby gratuito **rechaza
+todo el despliegue** si hay más de 12 en total — no avisa por
+adelantado, simplemente el build falla con "No more than 12 Serverless
+Functions can be added to a Deployment on the Hobby plan". Ya pasó una
+vez (el canje de productos en línea agregó 3 funciones y llevó el
+total a 13); se resolvió fusionando endpoints relacionados en uno solo
+con un parámetro que distingue la acción (`/api/health?calendar=1`,
+`/api/staff/product-redemption` con `action`), no agregando lógica
+nueva. **Antes de agregar un archivo nuevo bajo `/api` o `/api/staff`,
+contar cuántos hay** (`find api -name "*.ts" -not -path "*/_lib/*" |
+wc -l`) — con 11 hoy, queda espacio para uno más antes de tener que
+fusionar de nuevo o pasar al plan Pro.
 
 `/api/availability` y `/api/book` ya no usan un horario ni un catálogo
 de servicios fijos: consultan `api/_lib/scheduleRepo.ts` y
@@ -544,8 +561,8 @@ tabla paralela: se le agregó `product_id` (antes solo admitía
 `reward_id`), con un `check` que exige que cada fila apunte a
 exactamente una de las dos cosas.
 
-**Flujo (tres funciones nuevas, cada una con su propio endpoint —
-ninguna se llama directo desde el navegador):**
+**Flujo (tres funciones SQL nuevas, cada una llamada desde el
+servidor, nunca directo desde el navegador):**
 
 1. **Canjear** — `POST /api/redeem-product` (requiere sesión, la llama
    el cliente) → `redeem_product_for_points()`: mismo blindaje de
@@ -554,20 +571,25 @@ ninguna se llama directo desde el navegador):**
    Descuenta los puntos (motivo `'reward_redemption'`, igual que
    cualquier otro canje) y crea la fila en `reward_redemptions` con
    `status = 'pending'` — el producto queda pendiente de recoger.
-2. **Entregar** — `POST /api/staff/fulfill-product-redemption`
-   (cualquier barbero o admin) → `fulfill_product_redemption()`: solo
-   confirma "sí, ya se lo di" (`status = 'fulfilled'`). No toca
-   puntos, así que no hace falta ser admin.
-3. **Cancelar y devolver puntos** — `POST /api/staff/cancel-product-redemption`
-   (**solo admin**, mismo criterio que el canje presencial) →
-   `cancel_product_redemption()`: le devuelve los puntos al cliente
-   (motivo `'redemption_refund'`, mismo patrón que una reserva
-   canjeada que se cancela) y marca `status = 'cancelled'`. La
-   actualización es `where status = 'pending'` — si dos clics casi
-   simultáneos intentan cancelar lo mismo, el segundo encuentra la fila
-   ya en otro estado y no hace nada (mismo blindaje contra doble
-   reembolso que ya existía para reservas, más un índice único de
-   respaldo: `points_tx_one_refund_per_redemption_idx`).
+2. **Entregar** o **cancelar y devolver puntos** — `POST
+   /api/staff/product-redemption` con `{ redemptionId, action }`. Los
+   dos casos comparten un solo endpoint (antes eran dos, se fusionaron
+   por el límite de funciones serverless — ver más abajo), pero cada
+   `action` sigue teniendo su propio control de permisos adentro:
+   - `action: "fulfill"` (cualquier barbero o admin) →
+     `fulfill_product_redemption()`: solo confirma "sí, ya se lo di"
+     (`status = 'fulfilled'`). No toca puntos, así que no hace falta
+     ser admin.
+   - `action: "cancel"` (**solo admin**, mismo criterio que el canje
+     presencial) → `cancel_product_redemption()`: le devuelve los
+     puntos al cliente (motivo `'redemption_refund'`, mismo patrón que
+     una reserva canjeada que se cancela) y marca `status =
+     'cancelled'`. La actualización es `where status = 'pending'` — si
+     dos clics casi simultáneos intentan cancelar lo mismo, el segundo
+     encuentra la fila ya en otro estado y no hace nada (mismo
+     blindaje contra doble reembolso que ya existía para reservas, más
+     un índice único de respaldo:
+     `points_tx_one_refund_per_redemption_idx`).
 
 `/admin/canjes` lista los canjes de producto (filtrable por estado,
 "Pendiente de recoger" por defecto) con el botón **"Entregar"** y,

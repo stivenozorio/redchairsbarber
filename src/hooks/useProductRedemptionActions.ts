@@ -6,9 +6,9 @@ interface ActionResult {
   error: string | null;
 }
 
-/** Confirmar entrega / cancelar un canje de producto — contra los
- * endpoints de api/staff/*-product-redemption.ts, mismo patrón que
- * useUpdateBookingStatus. */
+/** Confirmar entrega / cancelar un canje de producto — contra el
+ * endpoint fusionado api/staff/product-redemption.ts (antes dos
+ * endpoints separados), mismo patrón que useUpdateBookingStatus. */
 export function useProductRedemptionActions() {
   const { session } = useAuth();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -20,13 +20,13 @@ export function useProductRedemptionActions() {
   }, [session]);
 
   const call = useCallback(
-    async (path: string, redemptionId: string): Promise<ActionResult> => {
+    async (action: "fulfill" | "cancel", redemptionId: string): Promise<ActionResult> => {
       setUpdatingId(redemptionId);
       try {
-        const res = await fetch(path, {
+        const res = await fetch("/api/staff/product-redemption", {
           method: "POST",
           headers: authHeaders(),
-          body: JSON.stringify({ redemptionId }),
+          body: JSON.stringify({ redemptionId, action }),
         });
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) return { ok: false, error: data.error ?? "No se pudo completar la acción." };
@@ -40,14 +40,8 @@ export function useProductRedemptionActions() {
     [authHeaders]
   );
 
-  const fulfill = useCallback(
-    (redemptionId: string) => call("/api/staff/fulfill-product-redemption", redemptionId),
-    [call]
-  );
-  const cancel = useCallback(
-    (redemptionId: string) => call("/api/staff/cancel-product-redemption", redemptionId),
-    [call]
-  );
+  const fulfill = useCallback((redemptionId: string) => call("fulfill", redemptionId), [call]);
+  const cancel = useCallback((redemptionId: string) => call("cancel", redemptionId), [call]);
 
   return { fulfill, cancel, updatingId };
 }

@@ -15,7 +15,7 @@ import { sendApiError } from "./_lib/http.js";
  * verifica stock porque el catálogo de productos no lo tiene. El
  * producto queda "pendiente" en reward_redemptions hasta que el
  * cliente lo recoge en el local (ver
- * api/staff/fulfill-product-redemption.ts).
+ * api/staff/product-redemption.ts, action: "fulfill").
  */
 
 interface RequestBody {

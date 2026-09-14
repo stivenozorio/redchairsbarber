@@ -1,6 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getMissingSupabaseEnvVars, getSupabaseAdmin } from "./_lib/supabaseAdmin.js";
-import { getMissingEnvVars as getMissingCalendarEnvVars } from "./_lib/googleCalendar.js";
+import {
+  BARBER_IDS,
+  getCalendarClient,
+  getCalendarIdForBarber,
+  getMissingEnvVars as getMissingCalendarEnvVars,
+  type BarberId,
+} from "./_lib/googleCalendar.js";
 
 /**
  * Diagnóstico completo de RED CLUB, de solo lectura.
@@ -8,7 +14,62 @@ import { getMissingEnvVars as getMissingCalendarEnvVars } from "./_lib/googleCal
  * Diseñado para responder UNA pregunta: si algo no funciona, ¿qué es
  * exactamente y qué hay que hacer? Nunca devuelve un `ok:false` sin
  * explicar el motivo ni los pasos a seguir.
+ *
+ * El chequeo de Google Calendar (¿responde cada calendario de barbero?)
+ * vivía en un endpoint aparte (api/calendar-health.ts) — se fusionó
+ * aquí, detrás de `?calendar=1`, porque el plan Hobby de Vercel tiene
+ * un tope de 12 funciones serverless por despliegue y ya se había
+ * llegado a 13. Sigue siendo opt-in (no se ejecuta en cada chequeo
+ * normal) para no sumarle latencia a `/api/health` sin pedirlo.
  */
+
+interface BarberCalendarCheck {
+  barberId: BarberId;
+  reachable: boolean;
+  error: string | null;
+}
+
+async function checkCalendars(): Promise<{
+  ok: boolean;
+  missingEnvVars: string[];
+  barbers: BarberCalendarCheck[];
+  error?: string;
+}> {
+  const missingEnvVars = getMissingCalendarEnvVars();
+  if (missingEnvVars.length > 0) {
+    return { ok: false, missingEnvVars, barbers: [] };
+  }
+
+  let calendar;
+  try {
+    calendar = getCalendarClient();
+  } catch (error) {
+    return {
+      ok: false,
+      missingEnvVars,
+      barbers: [],
+      error: error instanceof Error ? error.message : "No se pudo crear el cliente de Google Calendar.",
+    };
+  }
+
+  const barbers: BarberCalendarCheck[] = await Promise.all(
+    BARBER_IDS.map(async (barberId): Promise<BarberCalendarCheck> => {
+      const calendarId = getCalendarIdForBarber(barberId);
+      try {
+        await calendar.calendars.get({ calendarId });
+        return { barberId, reachable: true, error: null };
+      } catch (error) {
+        const message =
+          (error as { errors?: { message?: string }[] }).errors?.[0]?.message ??
+          (error as { message?: string }).message ??
+          "Error desconocido al consultar el calendario.";
+        return { barberId, reachable: false, error: message };
+      }
+    })
+  );
+
+  return { ok: barbers.every((b) => b.reachable), missingEnvVars: [], barbers };
+}
 
 const EXPECTED_TABLES = [
   "profiles",
@@ -262,6 +323,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
   }
 
+  // ---------------------------------------------------------
+  // 5. Google Calendar (opt-in vía ?calendar=1) — ¿responde cada
+  //    calendario de barbero con las credenciales actuales?
+  // ---------------------------------------------------------
+  let calendarDetalle: Awaited<ReturnType<typeof checkCalendars>> | null = null;
+  if (req.query.calendar === "1" && missingCalendarEnv.length === 0) {
+    calendarDetalle = await checkCalendars();
+    if (!calendarDetalle.ok) {
+      problems.push("Uno o más calendarios de Google no responden. Ver 'calendarDetalle'.");
+      nextSteps.push("Revisa GOOGLE_CALENDAR_ID_* y los permisos de la cuenta de servicio en Google Calendar.");
+    }
+  }
+
   const ok = problems.length === 0;
 
   res.status(200).json({
@@ -278,5 +352,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     tables,
     seeds: { ...seeds, ok: seedsOk },
     database,
+    calendarDetalle,
   });
 }
