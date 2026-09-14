@@ -1,4 +1,5 @@
-import { FaSpinner } from "react-icons/fa";
+import { Link } from "react-router-dom";
+import { FaChevronRight, FaSpinner } from "react-icons/fa";
 import { usePointsHistory } from "../../hooks/usePointsHistory";
 import { POINTS_REASON_LABEL } from "../../data/pointsReason";
 import { formatShortDate } from "../../lib/format";
@@ -49,6 +50,14 @@ export default function PointsHistory({ userId }: { userId: string | undefined }
           ))
         )}
       </div>
+
+      <Link
+        to="/productos"
+        className="mt-5 flex items-center justify-between gap-2 border-t border-gold/10 pt-4 text-xs uppercase tracking-widest2 text-gold/80 transition-colors hover:text-gold"
+      >
+        Ver productos que puedes comprar o canjear
+        <FaChevronRight size={10} />
+      </Link>
     </div>
   );
 }

@@ -598,7 +598,10 @@ Como quien está viendo `/servicios` normalmente no sabe que también
 hay catálogo de productos, se agregó una sección de enlace cruzado al
 final de `/servicios` ("También tenemos productos") apuntando a
 `/productos` — sin fusionar las dos páginas, cada una sigue siendo su
-propia ruta.
+propia ruta. Por el mismo motivo, "Mi cuenta" (`PointsHistory.tsx`,
+justo debajo del historial de puntos) también enlaza a `/productos` —
+antes solo se llegaba desde Fidelización, y un socio que entra directo
+a su cuenta no tenía ninguna pista de que el catálogo existía.
 
 ### Cumpleaños del socio (Fase 4, ajuste)
 
