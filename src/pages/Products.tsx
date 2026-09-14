@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { FaCheckCircle, FaCoins, FaExchangeAlt, FaExclamationTriangle, FaSpinner } from "react-icons/fa";
+import {
+  FaCheckCircle,
+  FaCoins,
+  FaExchangeAlt,
+  FaExclamationTriangle,
+  FaSpinner,
+  FaWhatsapp,
+} from "react-icons/fa";
 import PageHero from "../components/PageHero";
 import SectionHeading from "../components/SectionHeading";
 import Reveal from "../components/Reveal";
@@ -9,6 +16,7 @@ import { useMemberSummary } from "../hooks/useMemberSummary";
 import { useActiveProducts, type ActiveProduct } from "../hooks/useActiveProducts";
 import { useRedeemProduct } from "../hooks/useRedeemProduct";
 import { formatCop } from "../lib/format";
+import { PHONE_NUMBER } from "../data/site";
 
 const UNCATEGORIZED = "Otros";
 
@@ -32,13 +40,20 @@ interface Feedback {
 }
 
 /**
- * Catálogo público de productos, con canje EN LÍNEA: el cliente
- * descuenta sus propios puntos desde aquí, sin pasar por el
- * mostrador. A pedido explícito del negocio ("siempre tenemos
- * existencias") — no hay control de inventario, así que el canje
- * nunca verifica stock. El producto queda pendiente de recoger en el
- * local (reward_redemptions, status 'pending'); un miembro del staff
- * lo marca como entregado desde /admin/canjes.
+ * Catálogo público de productos, con dos formas de llevárselo:
+ *
+ * - "Comprar" (precio en pesos): no hay carrito ni cobro en línea, solo
+ *   abre WhatsApp con el producto ya escrito para que el barbero lo
+ *   separe. No requiere cuenta.
+ * - "Canjear" (con puntos): SÍ descuenta los puntos al instante (canje
+ *   en línea, sin pasar por el mostrador) y además abre WhatsApp para
+ *   avisarle al barbero que lo aparte. Requiere sesión.
+ *
+ * A pedido explícito del negocio ("siempre tenemos existencias") no hay
+ * control de inventario en ninguno de los dos casos. El canje con
+ * puntos queda pendiente de recoger en el local (reward_redemptions,
+ * status 'pending'); un miembro del staff lo marca como entregado
+ * desde /admin/canjes.
  */
 export default function Products() {
   const { session, profile } = useAuth();
@@ -51,6 +66,20 @@ export default function Products() {
 
   const groups = products ? groupByCategory(products) : [];
 
+  const buildWhatsappLines = (intro: string) =>
+    [intro, profile?.full_name ? `Mi nombre es ${profile.full_name}.` : null, "¿Me lo pueden separar para pasar a recogerlo?"].filter(
+      (line): line is string => Boolean(line)
+    );
+
+  const handleBuy = (product: ActiveProduct) => {
+    const url = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(
+      buildWhatsappLines(
+        `Hola Red Chairs Barber, quiero comprar "${product.name}" (${formatCop(product.price_cop)}).`
+      ).join("\n")
+    )}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   const handleRedeem = async (product: ActiveProduct) => {
     if (
       !window.confirm(
@@ -59,18 +88,42 @@ export default function Products() {
     ) {
       return;
     }
+
+    // La pestaña de WhatsApp se abre en blanco ya, dentro del gesto del
+    // usuario — igual que en Booking.tsx. Si se abriera después del
+    // await al servidor, Safari y otros navegadores móviles la
+    // bloquean en silencio.
+    const whatsappTab = window.open("", "_blank");
+    if (whatsappTab) whatsappTab.opener = null;
+
     setRedeemingId(product.id);
     setFeedback((prev) => ({ ...prev, [product.id]: undefined as unknown as Feedback }));
     const result = await redeem(product.id);
     setRedeemingId(null);
     if (!result.ok) {
+      whatsappTab?.close();
       setFeedback((prev) => ({ ...prev, [product.id]: { type: "error", message: result.error ?? "No se pudo procesar el canje." } }));
       return;
     }
     await reloadSummary();
+
+    const url = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(
+      buildWhatsappLines(
+        `Hola Red Chairs Barber, acabo de canjear "${product.name}" por ${product.points_cost} puntos en el sitio.`
+      ).join("\n")
+    )}`;
+    if (whatsappTab && !whatsappTab.closed) {
+      whatsappTab.location.href = url;
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+
     setFeedback((prev) => ({
       ...prev,
-      [product.id]: { type: "success", message: "¡Canjeado! Pasa por el local a recogerlo." },
+      [product.id]: {
+        type: "success",
+        message: "¡Canjeado! Le avisamos al barbero por WhatsApp — pasa por el local a recogerlo.",
+      },
     }));
   };
 
@@ -79,7 +132,7 @@ export default function Products() {
       <PageHero
         eyebrow="RED CLUB"
         title="Productos"
-        subtitle="Pomadas, tratamientos y kits para seguir el cuidado desde casa — cada uno se puede pagar en efectivo o canjear con tus puntos RED CLUB."
+        subtitle="Pomadas, tratamientos y kits para seguir el cuidado desde casa — cómpralos en efectivo o canjéalos con tus puntos RED CLUB, y te avisamos al barbero por WhatsApp para que te lo separe."
       />
 
       <section className="border-b border-gold/10 bg-obsidian py-24">
@@ -140,13 +193,22 @@ export default function Products() {
                               </span>
                             </div>
 
-                            {session ? (
-                              <>
+                            <div className="mt-4 flex flex-col gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleBuy(product)}
+                                className="btn-outline !py-2.5 text-xs"
+                              >
+                                <FaWhatsapp size={12} />
+                                <span className="ml-2">Comprar</span>
+                              </button>
+
+                              {session ? (
                                 <button
                                   type="button"
                                   disabled={!canRedeem || redeeming}
                                   onClick={() => void handleRedeem(product)}
-                                  className="btn-gold mt-4 !py-2.5 text-xs disabled:opacity-40"
+                                  className="btn-gold !py-2.5 text-xs disabled:opacity-40"
                                 >
                                   {isRedeeming ? (
                                     <FaSpinner className="animate-spin" />
@@ -157,24 +219,24 @@ export default function Products() {
                                     {canRedeem ? "Canjear" : `Te faltan ${product.points_cost - pointsBalance} pts`}
                                   </span>
                                 </button>
-                                {result?.type === "success" && (
-                                  <p className="mt-2 flex items-center gap-1.5 text-xs text-gold">
-                                    <FaCheckCircle size={10} /> {result.message}
-                                  </p>
-                                )}
-                                {result?.type === "error" && (
-                                  <p className="mt-2 flex items-center gap-1.5 text-xs text-blood">
-                                    <FaExclamationTriangle size={10} /> {result.message}
-                                  </p>
-                                )}
-                              </>
-                            ) : (
-                              <Link
-                                to="/club/entrar"
-                                className="mt-4 flex items-center justify-center gap-1.5 text-xs uppercase tracking-widest2 text-gold/80 transition-colors hover:text-gold"
-                              >
-                                Inicia sesión para canjear
-                              </Link>
+                              ) : (
+                                <Link
+                                  to="/club/entrar"
+                                  className="flex items-center justify-center gap-1.5 text-xs uppercase tracking-widest2 text-gold/80 transition-colors hover:text-gold"
+                                >
+                                  Inicia sesión para canjear con puntos
+                                </Link>
+                              )}
+                            </div>
+                            {result?.type === "success" && (
+                              <p className="mt-2 flex items-center gap-1.5 text-xs text-gold">
+                                <FaCheckCircle size={10} /> {result.message}
+                              </p>
+                            )}
+                            {result?.type === "error" && (
+                              <p className="mt-2 flex items-center gap-1.5 text-xs text-blood">
+                                <FaExclamationTriangle size={10} /> {result.message}
+                              </p>
                             )}
                           </div>
                         </div>
@@ -192,11 +254,12 @@ export default function Products() {
         <div className="container-lux text-center">
           <Reveal>
             <h2 className="heading-lg">
-              ¿Cómo <span className="text-gold">recojo</span> lo que canjeé?
+              ¿Cómo <span className="text-gold">recojo</span> lo que pedí?
             </h2>
             <p className="body-muted mx-auto mt-5 max-w-xl text-lg">
-              El canje descuenta tus puntos al instante — solo pasa por el local en tu próxima
-              visita a recoger el producto.
+              "Comprar" y "Canjear" avisan por WhatsApp al barbero para que te lo separe — el
+              canje con puntos además descuenta el saldo al instante. En los dos casos, pasas
+              por el local en tu próxima visita a recogerlo y pagarlo (si aplica).
             </p>
             <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
               <Link to="/reservar" className="btn-gold">

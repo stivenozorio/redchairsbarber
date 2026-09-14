@@ -578,6 +578,28 @@ que cualquier barbero confirme una entrega, pero no hay todavía un
 lugar en `/barbero` para hacerlo; si hace falta, es una extensión
 futura sencilla (mismo hook, otra pantalla), no un cambio de permisos.
 
+**"Comprar" a precio normal, sin puntos (Fase 4, ajuste 2):** cada
+tarjeta de producto en `/productos` tiene, además de "Canjear", un
+botón **"Comprar"** con el precio en pesos. A pedido del negocio, esto
+**no es un carrito ni un cobro en línea** — no hay pasarela de pagos,
+no descuenta nada, no requiere sesión. Solo arma un mensaje de
+WhatsApp con el producto y el precio y abre `wa.me` (mismo patrón que
+la reserva de cita en `Booking.tsx`: la pestaña se abre en blanco
+dentro del gesto del clic para que Safari/iOS no la bloquee). El
+barbero recibe el mensaje y lo aparta; el pago se hace en persona.
+
+El canje con puntos (botón "Canjear") sigue funcionando exactamente
+igual que antes — descuenta el saldo al instante — pero **ahora
+también abre WhatsApp** al confirmar, con el mismo criterio: aviso
+inmediato al barbero de que hay que separar el producto, sin esperar
+a que alguien revise `/admin/canjes`.
+
+Como quien está viendo `/servicios` normalmente no sabe que también
+hay catálogo de productos, se agregó una sección de enlace cruzado al
+final de `/servicios` ("También tenemos productos") apuntando a
+`/productos` — sin fusionar las dos páginas, cada una sigue siendo su
+propia ruta.
+
 ### Cumpleaños del socio (Fase 4, ajuste)
 
 `profiles.birthday` existía desde la Fase 1 (pensado para el motivo

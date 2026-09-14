@@ -47,6 +47,25 @@ export default function Services() {
         </section>
       ))}
 
+      <section className="border-b border-gold/10 bg-charcoal py-20">
+        <div className="container-lux text-center">
+          <Reveal>
+            <h2 className="heading-lg">
+              También tenemos <span className="text-gold">productos</span>
+            </h2>
+            <p className="body-muted mx-auto mt-5 max-w-xl text-lg">
+              Pomadas, tratamientos y kits para seguir el cuidado desde casa — cómpralos o
+              canjéalos con tus puntos RED CLUB.
+            </p>
+            <div className="mt-8">
+              <Link to="/productos" className="btn-outline">
+                Ver productos
+              </Link>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       <section className="bg-obsidian py-28">
         <div className="container-lux text-center">
           <Reveal>
