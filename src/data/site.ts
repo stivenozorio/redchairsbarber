@@ -21,6 +21,7 @@ export const HOURS = [{ day: "Lunes a sábado", time: "10:00 a. m. – 9:00 p. m
 export const NAV_LINKS = [
   { label: "Inicio", to: "/" },
   { label: "Servicios", to: "/servicios" },
+  { label: "Productos", to: "/productos" },
   { label: "Experiencia VIP", to: "/experiencia-vip" },
   { label: "Fidelización", to: "/fidelizacion" },
   { label: "Nosotros", to: "/nosotros" },

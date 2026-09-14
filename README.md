@@ -594,14 +594,13 @@ también abre WhatsApp** al confirmar, con el mismo criterio: aviso
 inmediato al barbero de que hay que separar el producto, sin esperar
 a que alguien revise `/admin/canjes`.
 
-Como quien está viendo `/servicios` normalmente no sabe que también
-hay catálogo de productos, se agregó una sección de enlace cruzado al
-final de `/servicios` ("También tenemos productos") apuntando a
-`/productos` — sin fusionar las dos páginas, cada una sigue siendo su
-propia ruta. Por el mismo motivo, "Mi cuenta" (`PointsHistory.tsx`,
-justo debajo del historial de puntos) también enlaza a `/productos` —
-antes solo se llegaba desde Fidelización, y un socio que entra directo
-a su cuenta no tenía ninguna pista de que el catálogo existía.
+`/productos` está en el menú principal (`NAV_LINKS`, `src/data/site.ts`)
+junto a "Servicios" — antes solo se llegaba por enlaces escondidos
+dentro de otras páginas (Fidelización), así que un visitante que
+entraba directo al sitio no tenía forma de encontrar el catálogo.
+Además, por si acaso, se agregó una sección de enlace cruzado al final
+de `/servicios` ("También tenemos productos") y un enlace en "Mi
+cuenta" (`PointsHistory.tsx`, justo debajo del historial de puntos).
 
 ### Cumpleaños del socio (Fase 4, ajuste)
 
