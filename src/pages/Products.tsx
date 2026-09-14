@@ -172,7 +172,7 @@ export default function Products() {
                             <img
                               src={product.image_url}
                               alt={product.name}
-                              className="h-48 w-full object-cover"
+                              className="h-48 w-full bg-charcoal object-contain"
                             />
                           ) : (
                             <div className="flex h-48 w-full items-center justify-center bg-charcoal text-bone/30">

@@ -807,7 +807,12 @@ Incluye:
   `0023_products_images.sql`), máximo 5 MB; al reemplazarla, la foto
   anterior **no se borra** de Storage (queda huérfana) — para un
   catálogo de este tamaño no vale la pena la complejidad extra de
-  rastrearla.
+  rastrearla. En `/productos` la foto se muestra con `object-contain`
+  (no `object-cover`) dentro de un fondo sólido: como muchas fotos que
+  se suben son banners promocionales del proveedor (con texto y
+  proporciones distintas a una foto de producto normal), recortar para
+  llenar el espacio le cortaba información importante — mejor dejar
+  la imagen completa aunque queden franjas de fondo a los lados.
 
   **El catálogo real de 12 productos (Shampoo CMS, Agiva, Ossion,
   Minoxidil, Derma Roller y 4 combos) ya viene sembrado por
