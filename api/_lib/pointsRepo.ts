@@ -104,6 +104,51 @@ export async function adminRedeemPoints(
   }
 }
 
+/**
+ * Asigna puntos manualmente (premio de un concurso, cortesía, corrección
+ * de un error, etc.) — lo inicia un administrador desde
+ * `/admin/clientes`. Operación inversa de `adminRedeemPoints`: llama a
+ * `admin_award_points()` (migración 0026_admin_award_points.sql), motivo
+ * `manual_adjustment` en vez de `reward_redemption`.
+ */
+export async function adminAwardPoints(
+  adminId: string,
+  userId: string,
+  points: number,
+  description: string
+): Promise<RedeemPointsResult> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return { ok: false, newBalance: null, error: "Supabase no está configurado." };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .rpc("admin_award_points", {
+        p_admin_id: adminId,
+        p_user_id: userId,
+        p_points: points,
+        p_description: description,
+      })
+      .single();
+
+    if (error) {
+      console.error("Error inesperado asignando puntos manualmente:", error);
+      return { ok: false, newBalance: null, error: "No se pudo asignar los puntos." };
+    }
+
+    const result = data as { success: boolean; new_balance: number | null; error_message: string | null };
+    return {
+      ok: result.success,
+      newBalance: result.new_balance,
+      error: result.success ? null : (result.error_message ?? "No se pudo asignar los puntos."),
+    };
+  } catch (error) {
+    console.error("Error inesperado asignando puntos manualmente:", error);
+    return { ok: false, newBalance: null, error: "No se pudo asignar los puntos." };
+  }
+}
+
 export interface RedeemProductResult {
   ok: boolean;
   newBalance: number | null;

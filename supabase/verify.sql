@@ -436,3 +436,25 @@ where rr.product_id is not null and rr.status = 'cancelled'
     select 1 from public.points_transactions pt
     where pt.redemption_id = rr.id and pt.reason = 'redemption_refund' and pt.amount > 0
   );
+
+-- 26. Asignación manual de puntos (Fase 4, ajuste) -------------------------
+
+-- 26a. Función nueva debe existir.
+select
+  case when exists (
+    select 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'admin_award_points'
+  ) then '✅ OK' else '❌ FALTA — ejecuta 0026 (ver sección 26)' end as funcion_admin_award_points;
+
+-- 26b. Asignaciones manuales recientes: motivo 'manual_adjustment', monto
+-- positivo, sin booking_id — created_by trae al admin que la registró.
+select
+  pt.id, p_c.full_name as cliente, p_a.full_name as admin, pt.amount as puntos_asignados,
+  pt.description, pt.created_at
+from public.points_transactions pt
+join public.profiles p_c on p_c.id = pt.user_id
+left join public.profiles p_a on p_a.id = pt.created_by
+where pt.reason = 'manual_adjustment' and pt.amount > 0
+order by pt.created_at desc
+limit 50;

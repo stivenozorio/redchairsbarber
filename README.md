@@ -547,6 +547,43 @@ puramente un movimiento en el ledger de puntos, igual que otorgarlos:
 lo único que hace es descontar el saldo del cliente y dejar constancia
 de qué se le entregó a cambio.
 
+### Asignación manual de puntos y su historial (Fase 4, ajuste)
+
+Migración `0026_admin_award_points.sql`. Caso real que la motivó: un
+concurso (por ejemplo en Instagram) cuyo ganador todavía no tenía
+cuenta en RED CLUB — se le pide crearse una, y ya con su cuenta un
+administrador le carga los puntos del premio a mano, sin que haya de
+por medio ninguna cita, canje ni compra.
+
+Misma ficha de cliente (`ClientProfileModal.tsx`, "Ver perfil" desde
+`/admin/clientes`), sección nueva **"Asignar puntos manualmente"** —
+solo visible para admin, junto a "Canjear puntos presencial". Pide
+cuántos puntos y un motivo obligatorio (para que quede escrito en el
+historial por qué se le dieron — "Ganador del concurso de Instagram",
+por ejemplo), nunca un monto sin explicación.
+
+Backend: es la operación inversa de `admin_redeem_points` —
+`admin_award_points()` SUMA en vez de restar, con el motivo
+`'manual_adjustment'` (existía desde 0001, pensado exactamente para
+esto) en vez de `'reward_redemption'`, así se distingue claramente en
+el historial de un canje real. Comparte el endpoint `POST
+/api/staff/redeem-points` con el canje presencial de arriba (un campo
+`action: "redeem" | "award"` decide cuál de las dos funciones SQL se
+llama) en vez de tener uno nuevo — ver la nota sobre el límite de
+funciones serverless más abajo.
+
+**La ficha del cliente ahora también muestra su historial completo de
+puntos** (ganados, canjeados, reembolsados, ajustados a mano) — antes
+`ClientProfileModal.tsx` solo mostraba el saldo actual y el historial
+de visitas, nunca el detalle de cómo se llegó a ese saldo. Reutiliza
+`usePointsHistory.ts` (el mismo hook de "Mi cuenta" en el club, que ya
+recibía el `userId` como parámetro en vez de estar atado a la sesión
+actual) — RLS decide qué puede ver cada quien: un cliente solo las
+suyas, un admin o barbero cualquiera (`is_staff()`, ver
+`0003_rls.sql`), así que esto se lee directo desde el navegador, sin
+necesidad de un endpoint nuevo — a diferencia de *escribir* en el
+ledger de puntos, que siempre pasa por una función de servidor.
+
 ### Canje de productos en línea (Fase 4, ajuste)
 
 Migración `0025_product_redemptions.sql`. Desde `/productos`, un
@@ -1333,6 +1370,11 @@ En Supabase → **SQL Editor**, ejecutar en orden los archivos de
     (staff confirma la entrega), `cancel_product_redemption()` (solo
     admin, devuelve los puntos). Ver
     ["Canje de productos en línea"](#canje-de-productos-en-línea-fase-4-ajuste).
+26. `0026_admin_award_points.sql` — asignación manual de puntos:
+    función `admin_award_points()`, la inversa de `admin_redeem_points`
+    (SUMA en vez de restar, motivo `manual_adjustment`). Para premios de
+    concursos, cortesías o corregir un error. Ver
+    ["Asignación manual de puntos y su historial"](#asignación-manual-de-puntos-y-su-historial-fase-4-ajuste).
 
 **`0004_seed.sql` no es opcional.** `bookings.barber_id` tiene una llave
 foránea contra `barbers`; con esa tabla vacía **ninguna reserva se puede

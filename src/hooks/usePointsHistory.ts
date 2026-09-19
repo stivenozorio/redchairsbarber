@@ -8,14 +8,19 @@ interface UsePointsHistoryResult {
   transactions: PointsTransactionRow[];
   loading: boolean;
   error: string | null;
+  reload: () => Promise<void>;
 }
 
 /**
- * Historial de movimientos de puntos del usuario autenticado (ganados,
- * canjeados, reembolsados), para "Mi cuenta". points_transactions es un
- * ledger append-only (ver 0001_schema.sql): esto solo LEE, nunca
- * modifica ni recalcula ninguna fila — RLS ya garantiza que un cliente
- * solo puede ver las suyas.
+ * Historial de movimientos de puntos (ganados, canjeados, reembolsados,
+ * ajustados a mano) de un usuario cualquiera — recibe el userId como
+ * parámetro, no está atado a la sesión actual, así que sirve tanto para
+ * "Mi cuenta" (el propio usuario) como para `ClientProfileModal.tsx`
+ * (un admin o barbero viendo la ficha de un cliente). RLS decide qué
+ * puede ver cada quien: un cliente solo las suyas (`auth.uid() =
+ * user_id`), staff cualquiera (`is_staff()`) — ver 0003_rls.sql.
+ * points_transactions es un ledger append-only: esto solo LEE, nunca
+ * modifica ni recalcula ninguna fila.
  */
 export function usePointsHistory(userId: string | undefined): UsePointsHistoryResult {
   const [transactions, setTransactions] = useState<PointsTransactionRow[]>([]);
@@ -52,5 +57,5 @@ export function usePointsHistory(userId: string | undefined): UsePointsHistoryRe
     void load();
   }, [load]);
 
-  return { transactions, loading, error };
+  return { transactions, loading, error, reload: load };
 }

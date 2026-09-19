@@ -3,11 +3,13 @@ import { FaBirthdayCake, FaCoins, FaExchangeAlt, FaExclamationTriangle, FaSpinne
 import { supabase } from "../../lib/supabase";
 import type { ClubMemberSummary } from "../../types/club";
 import { useMyBookings } from "../../hooks/useMyBookings";
+import { usePointsHistory } from "../../hooks/usePointsHistory";
 import { useAuth } from "../../auth/useAuth";
 import { useServiceOverrides } from "../../hooks/useServiceOverrides";
 import { useActiveProducts } from "../../hooks/useActiveProducts";
 import { useAdminRedeemPoints } from "../../hooks/useAdminRedeemPoints";
 import { BOOKING_STATUS_LABEL } from "../../data/bookingStatus";
+import { POINTS_REASON_LABEL } from "../../data/pointsReason";
 import { formatBirthday, formatShortDate, formatTime } from "../../lib/format";
 import { fieldClass, labelClass } from "../../lib/ui";
 import {
@@ -37,6 +39,12 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const { upcoming, past, loading: loadingBookings, error: bookingsError } = useMyBookings(userId);
+  const {
+    transactions: pointsHistory,
+    loading: loadingPointsHistory,
+    error: pointsHistoryError,
+    reload: reloadPointsHistory,
+  } = usePointsHistory(userId);
 
   // Canje de puntos presencial (solo admin): un servicio (misma tasa
   // que el canje en línea, piso(precio / 300) — ver services.ts) o un
@@ -46,12 +54,19 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
   const overrides = useServiceOverrides();
   const liveServices = useMemo(() => applyLiveOverrides(ALL_BOOKABLE_SERVICES, overrides), [overrides]);
   const products = useActiveProducts();
-  const { redeem, saving: redeeming } = useAdminRedeemPoints();
+  const { redeem, award, saving: redeeming } = useAdminRedeemPoints();
   const [redeemType, setRedeemType] = useState<"service" | "product">("service");
   const [redeemServiceId, setRedeemServiceId] = useState("");
   const [redeemProductId, setRedeemProductId] = useState("");
   const [redeemError, setRedeemError] = useState<string | null>(null);
   const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
+
+  // Asignación manual de puntos (solo admin): premio de un concurso,
+  // cortesía, corrección de un error — se suman en vez de restarse.
+  const [awardPoints, setAwardPoints] = useState("");
+  const [awardDescription, setAwardDescription] = useState("");
+  const [awardError, setAwardError] = useState<string | null>(null);
+  const [awardSuccess, setAwardSuccess] = useState<string | null>(null);
 
   const redeemService = liveServices.find((s) => s.id === redeemServiceId) ?? null;
   const redeemProduct = (products ?? []).find((p) => p.id === redeemProductId) ?? null;
@@ -81,6 +96,33 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
     setRedeemSuccess(`Se descontaron ${redeemCost} puntos por "${redeemName}".`);
     setRedeemServiceId("");
     setRedeemProductId("");
+    void reloadPointsHistory();
+  };
+
+  const awardPointsValue = Math.floor(Number(awardPoints));
+  const canAward = Number.isFinite(awardPointsValue) && awardPointsValue > 0 && awardDescription.trim().length > 0;
+
+  const handleAward = async () => {
+    if (!canAward) return;
+    if (
+      !window.confirm(
+        `¿Asignar ${awardPointsValue} puntos a este cliente? Motivo: "${awardDescription.trim()}". Esto no se puede deshacer.`
+      )
+    ) {
+      return;
+    }
+    setAwardError(null);
+    setAwardSuccess(null);
+    const result = await award(userId, awardPointsValue, awardDescription.trim());
+    if (!result.ok) {
+      setAwardError(result.error ?? "No se pudo asignar los puntos.");
+      return;
+    }
+    setSummary((prev) => (prev ? { ...prev, points_balance: result.newBalance ?? pointsBalance + awardPointsValue } : prev));
+    setAwardSuccess(`Se asignaron ${awardPointsValue} puntos.`);
+    setAwardPoints("");
+    setAwardDescription("");
+    void reloadPointsHistory();
   };
 
   useEffect(() => {
@@ -253,6 +295,90 @@ export default function ClientProfileModal({ userId, onClose }: { userId: string
             {redeemSuccess && <p className="mt-2 text-xs text-gold">{redeemSuccess}</p>}
           </div>
         )}
+
+        {isAdmin && summary && (
+          <div className="mt-6 border-t border-gold/10 pt-4">
+            <p className="eyebrow justify-start before:hidden">Asignar puntos manualmente</p>
+            <p className="mt-3 text-xs text-bone/50">
+              Para premios de concursos, cortesías o corregir un error — se le suman puntos al
+              cliente sin que haya de por medio una cita, canje o compra.
+            </p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="w-full sm:w-32">
+                <label className={labelClass}>Puntos</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={awardPoints}
+                  onChange={(e) => {
+                    setAwardPoints(e.target.value);
+                    setAwardError(null);
+                    setAwardSuccess(null);
+                  }}
+                  className={fieldClass}
+                />
+              </div>
+              <div className="flex-1">
+                <label className={labelClass}>Motivo</label>
+                <input
+                  type="text"
+                  placeholder="Ej. Ganador del concurso de Instagram"
+                  value={awardDescription}
+                  onChange={(e) => {
+                    setAwardDescription(e.target.value);
+                    setAwardError(null);
+                    setAwardSuccess(null);
+                  }}
+                  className={fieldClass}
+                />
+              </div>
+              <button
+                type="button"
+                disabled={!canAward || redeeming}
+                onClick={() => void handleAward()}
+                className="btn-gold shrink-0 !py-3 text-xs disabled:opacity-40"
+              >
+                {redeeming ? <FaSpinner className="animate-spin" /> : <FaCoins size={12} />}
+                <span className="ml-2">Asignar</span>
+              </button>
+            </div>
+            {awardError && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-blood">
+                <FaExclamationTriangle size={10} /> {awardError}
+              </p>
+            )}
+            {awardSuccess && <p className="mt-2 text-xs text-gold">{awardSuccess}</p>}
+          </div>
+        )}
+
+        <div className="mt-6 border-t border-gold/10 pt-4">
+          <p className="eyebrow justify-start before:hidden">Historial de puntos</p>
+          <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">
+            {loadingPointsHistory ? (
+              <p className="text-sm text-bone/50">Cargando...</p>
+            ) : pointsHistoryError ? (
+              <p className="text-sm text-blood">{pointsHistoryError}</p>
+            ) : pointsHistory.length === 0 ? (
+              <p className="text-sm text-bone/50">Todavía no tiene movimientos de puntos.</p>
+            ) : (
+              pointsHistory.map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between gap-4 text-sm">
+                  <div className="min-w-0">
+                    <p className="text-bone/80">{POINTS_REASON_LABEL[tx.reason] ?? tx.reason}</p>
+                    <p className="mt-0.5 text-xs text-bone/50">
+                      {tx.description ?? "—"} · {formatShortDate(tx.created_at)}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 font-display ${tx.amount > 0 ? "text-gold" : "text-blood"}`}>
+                    {tx.amount > 0 ? "+" : ""}
+                    {tx.amount}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
         <div className="mt-6 border-t border-gold/10 pt-4">
           <p className="eyebrow justify-start before:hidden">Próximas reservas</p>

@@ -35,6 +35,7 @@ const products = readMigration("0022_products.sql");
 const productsImages = readMigration("0023_products_images.sql");
 const productsSeed = readMigration("0024_products_seed.sql");
 const productRedemptions = readMigration("0025_product_redemptions.sql");
+const adminAwardPoints = readMigration("0026_admin_award_points.sql");
 
 test("existen todas las tablas del modelo RED CLUB", () => {
   const expected = [
@@ -1114,4 +1115,69 @@ test("0025 no borra ni pisa canjes o transacciones de puntos existentes", () => 
     "no debe modificar datos ya existentes — solo agrega columnas/funciones e inserta filas nuevas hacia adelante"
   );
   assert.ok(productRedemptions.includes("notify pgrst, 'reload schema'"));
+});
+
+// --- Fase 4 (ajuste): 0026 asignación manual de puntos (admin) ---
+
+test("0026 define admin_award_points con la firma esperada", () => {
+  assert.match(
+    adminAwardPoints,
+    /create or replace function public\.admin_award_points\(\s*\n\s*p_admin_id uuid,\s*\n\s*p_user_id uuid,\s*\n\s*p_points integer,\s*\n\s*p_description text\s*\n\)/
+  );
+});
+
+test("0026 rechaza una cantidad de puntos que no sea mayor a cero", () => {
+  const fnStart = adminAwardPoints.indexOf("create or replace function public.admin_award_points");
+  const fnEnd = adminAwardPoints.indexOf("$$;", fnStart);
+  const fnBody = adminAwardPoints.slice(fnStart, fnEnd);
+  assert.match(fnBody, /if p_points is null or p_points <= 0 then/);
+});
+
+test("0026 bloquea por usuario antes de recalcular el saldo (mismo patrón que 0021)", () => {
+  const fnStart = adminAwardPoints.indexOf("create or replace function public.admin_award_points");
+  const fnEnd = adminAwardPoints.indexOf("$$;", fnStart);
+  const fnBody = adminAwardPoints.slice(fnStart, fnEnd);
+  const lockPos = fnBody.indexOf("pg_advisory_xact_lock");
+  const insertPos = fnBody.indexOf("insert into public.points_transactions");
+  const balancePos = fnBody.indexOf("coalesce(sum(amount)");
+  assert.ok(lockPos > 0 && insertPos > 0 && balancePos > 0, "debe tener bloqueo, inserción y cálculo de saldo");
+  assert.ok(lockPos < insertPos, "el bloqueo debe ir antes de insertar");
+  assert.ok(insertPos < balancePos, "el saldo devuelto debe calcularse DESPUÉS de insertar, para incluir este movimiento");
+});
+
+test("0026 nunca rechaza por saldo insuficiente — sumar siempre es válido", () => {
+  const fnStart = adminAwardPoints.indexOf("create or replace function public.admin_award_points");
+  const fnEnd = adminAwardPoints.indexOf("$$;", fnStart);
+  const fnBody = adminAwardPoints.slice(fnStart, fnEnd);
+  assert.ok(!/insuficiente/i.test(fnBody), "asignar puntos no debe tener ninguna validación de saldo mínimo");
+});
+
+test("0026 inserta el movimiento con amount POSITIVO, reason 'manual_adjustment', sin booking_id, y con created_by = p_admin_id", () => {
+  const fnStart = adminAwardPoints.indexOf("create or replace function public.admin_award_points");
+  const fnEnd = adminAwardPoints.indexOf("$$;", fnStart);
+  const fnBody = adminAwardPoints.slice(fnStart, fnEnd);
+  assert.match(
+    fnBody,
+    /insert into public\.points_transactions \(user_id, amount, reason, description, booking_id, created_by\)/
+  );
+  assert.match(fnBody, /values \(p_user_id, p_points, 'manual_adjustment', p_description, null, p_admin_id\)/);
+});
+
+test("0026 revoca EXECUTE de public y solo lo concede a service_role", () => {
+  assert.match(
+    adminAwardPoints,
+    /revoke all on function public\.admin_award_points\(uuid, uuid, integer, text\) from public/
+  );
+  assert.match(
+    adminAwardPoints,
+    /grant execute on function public\.admin_award_points\(uuid, uuid, integer, text\) to service_role/
+  );
+});
+
+test("0026 no toca puntos históricos: no borra ni actualiza filas existentes", () => {
+  assert.ok(
+    !/\bdrop table\b|\bdelete from\b|\btruncate\b|\bupdate public\.points_transactions\b/i.test(adminAwardPoints),
+    "no debe modificar transacciones de puntos ya existentes — solo inserta filas nuevas hacia adelante"
+  );
+  assert.ok(adminAwardPoints.includes("notify pgrst, 'reload schema'"));
 });

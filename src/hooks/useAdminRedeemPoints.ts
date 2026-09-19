@@ -1,20 +1,29 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "../auth/useAuth";
 
-interface RedeemResult {
+interface PointsAdjustmentResult {
   ok: boolean;
   newBalance: number | null;
   error: string | null;
 }
 
-/** Canje de puntos PRESENCIAL desde el panel administrativo — contra
- * /api/staff/redeem-points, mismo patrón que useDayOff/useBlockSlot. */
+/** Ajustes de puntos hechos a mano por un administrador desde
+ * /admin/clientes — contra /api/staff/redeem-points, que soporta dos
+ * acciones sobre el mismo endpoint (ver comentario ahí): "redeem"
+ * (canje presencial, descuenta) y "award" (asignación manual, suma —
+ * ej. el premio de un concurso a alguien que recién se creó la
+ * cuenta). Mismo patrón que useProductRedemptionActions. */
 export function useAdminRedeemPoints() {
   const { session } = useAuth();
   const [saving, setSaving] = useState(false);
 
-  const redeem = useCallback(
-    async (userId: string, points: number, description: string): Promise<RedeemResult> => {
+  const call = useCallback(
+    async (
+      action: "redeem" | "award",
+      userId: string,
+      points: number,
+      description: string
+    ): Promise<PointsAdjustmentResult> => {
       setSaving(true);
       try {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -23,14 +32,14 @@ export function useAdminRedeemPoints() {
         const res = await fetch("/api/staff/redeem-points", {
           method: "POST",
           headers,
-          body: JSON.stringify({ userId, points, description }),
+          body: JSON.stringify({ action, userId, points, description }),
         });
         const data = (await res.json().catch(() => ({}))) as {
           error?: string;
           newBalance?: number;
         };
         if (!res.ok) {
-          return { ok: false, newBalance: null, error: data.error ?? "No se pudo registrar el canje." };
+          return { ok: false, newBalance: null, error: data.error ?? "No se pudo registrar el ajuste." };
         }
         return { ok: true, newBalance: data.newBalance ?? null, error: null };
       } catch {
@@ -42,5 +51,14 @@ export function useAdminRedeemPoints() {
     [session]
   );
 
-  return { redeem, saving };
+  const redeem = useCallback(
+    (userId: string, points: number, description: string) => call("redeem", userId, points, description),
+    [call]
+  );
+  const award = useCallback(
+    (userId: string, points: number, description: string) => call("award", userId, points, description),
+    [call]
+  );
+
+  return { redeem, award, saving };
 }
