@@ -584,6 +584,42 @@ suyas, un admin o barbero cualquiera (`is_staff()`, ver
 necesidad de un endpoint nuevo — a diferencia de *escribir* en el
 ledger de puntos, que siempre pasa por una función de servidor.
 
+### Video del hero (Home)
+
+El hero de `/` (`Home.tsx`) tiene un panel de video vertical junto al
+texto (debajo, en móvil) — un recorrido corto del local. El negocio
+mandó dos videos grabados para redes (verticales, 9:16, 8 segundos);
+se eligió el que abre con un plano macro del cuero de una silla y
+cierra en el poste de barbería (más cinematográfico, sin distorsión de
+lente gran angular como el otro).
+
+**Por qué un panel vertical y no un fondo a lo ancho:** los dos videos
+son 9:16, pensados para reels — forzar uno de ancho completo en el
+hero (como hacen muchos sitios) habría recortado buena parte de cada
+toma a los lados. En vez de eso, el video se ve completo dentro de un
+marco con el mismo lenguaje visual que el resto del sitio (borde dorado
+fino, esquinas `rounded-sm`, brillo `shadow-gold`) — como una tarjeta
+más, no una foto de fondo.
+
+**Se revela con `<Reveal>`** (el mismo fade-up con el que aparece todo
+el contenido del sitio al entrar en pantalla), reproduce automático,
+en loop, sin sonido (`muted`, `playsInline`, sin pista de audio en el
+archivo) — necesario para que los navegadores permitan el autoplay.
+**No es scroll-scrubbing** (el scroll no adelanta el video cuadro a
+cuadro): eso exigiría pre-extraer y precargar decenas de imágenes o una
+librería aparte, mucho más pesado y complejo para un video de fondo de
+8 segundos.
+
+**Archivos:** `public/videos/hero-tour.mp4` (re-codificado con ffmpeg
+desde el original — 720×1280, sin audio, `faststart` para que empiece
+a reproducir antes de descargarse completo, ~1.6 MB en vez de los
+~7.6 MB originales) y `hero-tour-poster.jpg` (primer cuadro, se muestra
+mientras el video carga). El video original de más calidad no se subió
+al repositorio — si el negocio quiere cambiar el video más adelante,
+hay que repetir el mismo proceso de compresión con un archivo nuevo,
+apuntando al mismo nombre de archivo o actualizando la ruta en
+`Home.tsx`.
+
 ### Canje de productos en línea (Fase 4, ajuste)
 
 Migración `0025_product_redemptions.sql`. Desde `/productos`, un
