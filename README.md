@@ -584,42 +584,51 @@ suyas, un admin o barbero cualquiera (`is_staff()`, ver
 necesidad de un endpoint nuevo — a diferencia de *escribir* en el
 ledger de puntos, que siempre pasa por una función de servidor.
 
-### Video de fondo del hero, con parallax (Home)
+### Video de fondo del hero, controlado por scroll (Home)
 
 El hero de `/` (`Home.tsx`) tiene un video de fondo a pantalla completa
-(un recorrido corto del local) que se mueve más lento que el resto de
-la página al hacer scroll — efecto parallax. El negocio mandó dos
-videos grabados para redes (verticales, 9:16, 8 segundos); se eligió el
-que abre con un plano macro del cuero de una silla y cierra en el
-poste de barbería (más cinematográfico, sin la distorsión de lente
-gran angular del otro).
+(un recorrido corto del local). El negocio mandó dos videos grabados
+para redes (verticales, 9:16, 8 segundos); se eligió el que abre con
+un plano macro del cuero de una silla y cierra en el poste de
+barbería (más cinematográfico, sin la distorsión de lente gran
+angular del otro).
 
 **Primer intento, descartado:** un panel de video vertical al lado del
 texto (para no recortar nada, ya que el material es 9:16 y el hero es
-ancho). El negocio pidió explícitamente que fuera de fondo y con
-movimiento al hacer scroll, así que se cambió por esto — a costa de
-recortar bastante a los lados de cada toma (se acepta el recorte
-porque el video igual recorre distintos planos del local a lo largo
-del loop de 8 segundos).
+ancho). El negocio pidió que fuera de fondo, así que se cambió por
+esto — a costa de recortar bastante a los lados de cada toma (se
+acepta el recorte porque el video igual recorre distintos planos del
+local).
 
-**El parallax** usa `useScroll`/`useTransform` de framer-motion:
-`scrollYProgress` va de 0 a 1 solo mientras el hero pasa de estar
-arriba del todo a salir de la vista (`target: heroRef, offset:
-["start start", "end start"]`), y ese progreso mueve el video ±60px en
-`y` — más lento que el scroll real, la sensación clásica de
-profundidad. El contenedor del video mide 80px más alto que el hero en
-cada extremo (`-top-20 -bottom-20`) para que ese desplazamiento nunca
-deje ver un borde vacío. **No es scroll-scrubbing** (el scroll no
-adelanta el video cuadro a cuadro, solo lo traslada): eso exigiría
-pre-extraer y precargar decenas de imágenes o una librería aparte,
-mucho más pesado y complejo para un video de 8 segundos.
+**El video NO se reproduce solo — el scroll controla directamente en
+qué cuadro va**, sin animación propia: parado (sin scrollear) se queda
+congelado en el cuadro que le corresponda a la posición actual,
+adelanta al bajar, retrocede al subir. Dos motivos para este diseño,
+uno de producto (el negocio pidió explícitamente "que solo se mueva
+cuando yo hago scroll", no un loop que se reproduce solo) y uno
+técnico: un `<video>` en pausa se puede "buscar" (`currentTime`) en
+cualquier navegador sin pedir ningún permiso, mientras que el
+autoplay SÍ depende de la política de cada navegador — la versión
+anterior (loop automático) solo reproducía en algunos navegadores y no
+en otros; con scroll-scrubbing ese problema desaparece de raíz, porque
+nunca se llama `.play()`.
 
-Reproduce automático, en loop, sin sonido (`muted`, `playsInline`, sin
-pista de audio en ninguno de los dos archivos) — necesario para que
-los navegadores permitan el autoplay. Encima del video van los mismos
-tres overlays que ya tenía el hero (degradado radial, degradado oscuro
-de arriba a abajo, patrón diagonal dorado) para que el texto siga
-siendo legible.
+Implementación: `useScroll` de framer-motion da `scrollYProgress` (0 a
+1 solo mientras el hero pasa de estar arriba del todo a salir de la
+vista — `target: heroRef, offset: ["start start", "end start"]`), y
+`useMotionValueEvent(scrollYProgress, "change", ...)` fija
+`video.currentTime = progress * video.duration` en cada cambio, contra
+un `videoRef` directo al elemento (`Number.isFinite(video.duration)`
+evita escribir antes de que cargue el metadata). No hace falta
+pre-extraer frames ni ninguna librería aparte — es el mismo archivo de
+video de siempre, solo que pausado y con el scroll moviendo el
+cabezal.
+
+Sin sonido (`muted`, `playsInline`, sin pista de audio en ninguno de
+los dos archivos — innecesario ahora que no hay autoplay, pero no
+sobra tenerlo). Encima del video van los mismos tres overlays que ya
+tenía el hero (degradado radial, degradado oscuro de arriba a abajo,
+patrón diagonal dorado) para que el texto siga siendo legible.
 
 **Archivos**, ambos re-codificados con ffmpeg desde el original
 (720×1280, sin audio) — `public/videos/hero-tour.mp4` (H.264,

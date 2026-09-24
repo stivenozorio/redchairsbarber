@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useMotionValueEvent, useScroll } from "framer-motion";
 import {
   FaCut,
   FaGem,
@@ -38,13 +38,22 @@ export default function Home() {
   const premiumPreview = SERVICE_CATEGORIES.find((c) => c.id === "premium")!.services;
   const { isAuthenticated } = useAuth();
 
-  // Video de fondo del hero: se mueve más lento que el scroll (efecto
-  // parallax clásico) mientras el hero está en pantalla. scrollYProgress
-  // va de 0 a 1 solo mientras el hero pasa de estar arriba del todo a
-  // salir de la vista — fuera de ese rango no se mueve más.
+  // Video de fondo del hero: NO se reproduce solo — el scroll controla
+  // directamente en qué cuadro va (scrollYProgress 0 = primer cuadro, 1 =
+  // último), así que solo avanza mientras el usuario scrollea el hero, y
+  // queda quieto en cualquier otro momento. Esto también evita depender
+  // de que cada navegador permita el autoplay (algunos son más
+  // permisivos que otros): un video pausado se puede "buscar"
+  // (currentTime) en cualquier navegador, sin pedirle permiso a nadie.
   const heroRef = useRef<HTMLElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
-  const videoY = useTransform(scrollYProgress, [0, 1], [-60, 60]);
+  useMotionValueEvent(scrollYProgress, "change", (progress) => {
+    const video = videoRef.current;
+    if (video && Number.isFinite(video.duration)) {
+      video.currentTime = progress * video.duration;
+    }
+  });
 
   return (
     <div>
@@ -53,23 +62,19 @@ export default function Home() {
         {/* El video es vertical (9:16, grabado para redes) y el hero es
             ancho, así que cubrir el fondo recorta bastante a los lados —
             se acepta ese recorte a cambio de que se sienta "de fondo" en
-            vez de un panel aparte. El contenedor mide 80px más alto que
-            el hero en cada extremo para que el desplazamiento (±60px del
-            parallax) nunca deje ver un borde vacío. */}
+            vez de un panel aparte. */}
         <div className="absolute inset-0 overflow-hidden">
-          <motion.div className="absolute inset-x-0 -top-20 -bottom-20" style={{ y: videoY }}>
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              poster="/videos/hero-tour-poster.jpg"
-              className="h-full w-full object-cover"
-            >
-              <source src="/videos/hero-tour.webm" type="video/webm" />
-              <source src="/videos/hero-tour.mp4" type="video/mp4" />
-            </video>
-          </motion.div>
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            preload="auto"
+            poster="/videos/hero-tour-poster.jpg"
+            className="h-full w-full object-cover"
+          >
+            <source src="/videos/hero-tour.webm" type="video/webm" />
+            <source src="/videos/hero-tour.mp4" type="video/mp4" />
+          </video>
         </div>
         <div className="absolute inset-0 bg-radial-fade" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,10,0.55)_0%,rgba(7,7,10,0.75)_55%,#07070a_100%)]" />
