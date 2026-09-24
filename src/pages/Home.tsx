@@ -1,5 +1,6 @@
+import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import {
   FaCut,
   FaGem,
@@ -37,12 +38,41 @@ export default function Home() {
   const premiumPreview = SERVICE_CATEGORIES.find((c) => c.id === "premium")!.services;
   const { isAuthenticated } = useAuth();
 
+  // Video de fondo del hero: se mueve más lento que el scroll (efecto
+  // parallax clásico) mientras el hero está en pantalla. scrollYProgress
+  // va de 0 a 1 solo mientras el hero pasa de estar arriba del todo a
+  // salir de la vista — fuera de ese rango no se mueve más.
+  const heroRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
+  const videoY = useTransform(scrollYProgress, [0, 1], [-60, 60]);
+
   return (
     <div>
       {/* HERO */}
-      <section className="relative flex min-h-[100svh] items-center justify-center overflow-hidden bg-obsidian">
+      <section ref={heroRef} className="relative flex min-h-[100svh] items-center justify-center overflow-hidden bg-obsidian">
+        {/* El video es vertical (9:16, grabado para redes) y el hero es
+            ancho, así que cubrir el fondo recorta bastante a los lados —
+            se acepta ese recorte a cambio de que se sienta "de fondo" en
+            vez de un panel aparte. El contenedor mide 80px más alto que
+            el hero en cada extremo para que el desplazamiento (±60px del
+            parallax) nunca deje ver un borde vacío. */}
+        <div className="absolute inset-0 overflow-hidden">
+          <motion.div className="absolute inset-x-0 -top-20 -bottom-20" style={{ y: videoY }}>
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              poster="/videos/hero-tour-poster.jpg"
+              className="h-full w-full object-cover"
+            >
+              <source src="/videos/hero-tour.webm" type="video/webm" />
+              <source src="/videos/hero-tour.mp4" type="video/mp4" />
+            </video>
+          </motion.div>
+        </div>
         <div className="absolute inset-0 bg-radial-fade" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,10,0.4)_0%,rgba(7,7,10,0.85)_75%,#07070a_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,10,0.55)_0%,rgba(7,7,10,0.75)_55%,#07070a_100%)]" />
         <div
           className="absolute inset-0 opacity-[0.06]"
           style={{
@@ -51,129 +81,104 @@ export default function Home() {
           }}
         />
 
-        <div className="container-lux relative z-10 pt-24">
-          <div className="grid items-center gap-16 lg:grid-cols-[1.05fr_0.9fr] lg:gap-12">
-            <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <LogoBadge className="mx-auto mb-10 h-28 w-28 sm:h-32 sm:w-32 lg:mx-0" />
-              </motion.div>
+        <div className="container-lux relative z-10 flex flex-col items-center pt-24 text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <LogoBadge className="mx-auto mb-10 h-28 w-28 sm:h-32 sm:w-32" />
+          </motion.div>
 
-              <motion.p
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.8 }}
-                className="eyebrow"
-              >
-                Barbería Premium · Bogotá
-              </motion.p>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.8 }}
+            className="eyebrow"
+          >
+            Barbería Premium · Bogotá
+          </motion.p>
 
-              <motion.h1
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.45, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-                className="heading-xl mt-6 max-w-4xl"
-              >
-                Más que un corte.
-                <br />
-                <span className="text-blood">Una experiencia</span> premium.
-              </motion.h1>
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+            className="heading-xl mt-6 max-w-4xl"
+          >
+            Más que un corte.
+            <br />
+            <span className="text-blood">Una experiencia</span> premium.
+          </motion.h1>
 
-              <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.65, duration: 0.9 }}
-                className="body-muted mt-8 max-w-xl text-lg"
-              >
-                Descubre una barbería donde cada detalle está pensado para
-                ofrecerte una experiencia exclusiva.
-              </motion.p>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.65, duration: 0.9 }}
+            className="body-muted mt-8 max-w-xl text-lg"
+          >
+            Descubre una barbería donde cada detalle está pensado para
+            ofrecerte una experiencia exclusiva.
+          </motion.p>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.85, duration: 0.9 }}
-                className="mt-12 flex flex-col gap-4 sm:flex-row"
-              >
-                <Link to="/reservar" className="btn-gold">
-                  Reservar cita
-                </Link>
-                <Link to="/servicios" className="btn-outline">
-                  Ver servicios
-                </Link>
-              </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.85, duration: 0.9 }}
+            className="mt-12 flex flex-col gap-4 sm:flex-row"
+          >
+            <Link to="/reservar" className="btn-gold">
+              Reservar cita
+            </Link>
+            <Link to="/servicios" className="btn-outline">
+              Ver servicios
+            </Link>
+          </motion.div>
 
-              {isSupabaseConfigured && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1, duration: 0.9 }}
-                  className="mt-6 flex flex-col gap-3 sm:flex-row"
+          {isSupabaseConfigured && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1, duration: 0.9 }}
+              className="mt-6 flex flex-col gap-3 sm:flex-row"
+            >
+              {isAuthenticated ? (
+                <Link
+                  to="/club"
+                  className="btn-outline !py-3 !px-6 text-[11px]"
                 >
-                  {isAuthenticated ? (
-                    <Link
-                      to="/club"
-                      className="btn-outline !py-3 !px-6 text-[11px]"
-                    >
-                      <FaUserCircle size={14} className="mr-2 inline" /> Mi cuenta
-                    </Link>
-                  ) : (
-                    <>
-                      <Link
-                        to="/club/entrar"
-                        className="btn-outline !py-3 !px-6 text-[11px]"
-                      >
-                        <FaSignInAlt size={13} className="mr-2 inline" /> Iniciar sesión
-                      </Link>
-                      <Link
-                        to="/club/registro"
-                        className="btn-outline !py-3 !px-6 text-[11px]"
-                      >
-                        <FaUserPlus size={13} className="mr-2 inline" /> Registrarme
-                      </Link>
-                    </>
-                  )}
-                </motion.div>
+                  <FaUserCircle size={14} className="mr-2 inline" /> Mi cuenta
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/club/entrar"
+                    className="btn-outline !py-3 !px-6 text-[11px]"
+                  >
+                    <FaSignInAlt size={13} className="mr-2 inline" /> Iniciar sesión
+                  </Link>
+                  <Link
+                    to="/club/registro"
+                    className="btn-outline !py-3 !px-6 text-[11px]"
+                  >
+                    <FaUserPlus size={13} className="mr-2 inline" /> Registrarme
+                  </Link>
+                </>
               )}
+            </motion.div>
+          )}
 
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.2 }}
-                className="mt-16 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-xs uppercase tracking-widest2 text-bone/50 lg:justify-start"
-              >
-                {TAGLINE_SECONDARY.map((t) => (
-                  <span key={t}>{t}</span>
-                ))}
-              </motion.div>
-            </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2 }}
+            className="mt-16 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-xs uppercase tracking-widest2 text-bone/50"
+          >
+            {TAGLINE_SECONDARY.map((t) => (
+              <span key={t}>{t}</span>
+            ))}
+          </motion.div>
 
-            {/* Recorrido en video del local — vertical (grabado para
-                redes), enmarcado como un panel en vez de recortarlo a lo
-                ancho: así se ve completo, sin perder nada de cada toma.
-                Se revela con el mismo fade-up que el resto del sitio
-                (Reveal), no hace scroll-scrubbing. */}
-            <Reveal delay={0.3} className="mx-auto w-full max-w-[280px] sm:max-w-xs lg:mx-0 lg:max-w-sm">
-              <div className="relative aspect-[9/16] overflow-hidden rounded-sm border border-gold/20 shadow-gold">
-                <video
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  poster="/videos/hero-tour-poster.jpg"
-                  className="h-full w-full object-cover"
-                >
-                  <source src="/videos/hero-tour.mp4" type="video/mp4" />
-                </video>
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-obsidian/50 via-transparent to-transparent" />
-              </div>
-            </Reveal>
-          </div>
-
-          <div className="mt-16 flex justify-center">
+          <div className="mt-10 sm:mt-12">
             <div className="h-10 w-6 rounded-full border border-gold/40 p-1">
               <motion.div
                 animate={{ y: [0, 12, 0] }}
