@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FaBan, FaCheck, FaExchangeAlt, FaExclamationTriangle, FaSpinner, FaUser } from "react-icons/fa";
+import { FaBan, FaCheck, FaClock, FaExchangeAlt, FaExclamationTriangle, FaSpinner, FaUser } from "react-icons/fa";
 import type { BookingRow, BookingStatus } from "../../types/club";
 import { BOOKING_STATUS_CLASS, BOOKING_STATUS_LABEL, BOOKING_STATUS_ORDER } from "../../data/bookingStatus";
 import { BARBERS } from "../../data/booking";
@@ -81,10 +81,13 @@ export default function BookingStatusRow({
   /** Si se da y la reserva tiene cuenta (user_id), se muestra "Ver cliente". */
   onOpenClient?: (userId: string) => void;
 }) {
-  const { updateStatus, updatingId } = useUpdateBookingStatus();
+  const { updateStatus, updateDuration, updatingId } = useUpdateBookingStatus();
   const { isAdmin } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [editingDuration, setEditingDuration] = useState(false);
+  const [durationInput, setDurationInput] = useState(String(booking.total_duration_minutes));
+  const [durationError, setDurationError] = useState<string | null>(null);
   const saving = updatingId === booking.id;
   const services = (booking.booking_services ?? []).slice().sort((a, b) => a.position - b.position);
 
@@ -102,6 +105,32 @@ export default function BookingStatusRow({
     }
     if (result.warning) setWarning(result.warning);
     onChanged({ ...booking, status });
+  };
+
+  // El barbero a veces se demora más (o menos) de lo previsto con el
+  // corte — esto mueve SOLO el fin de la cita en Calendar, sin tocar la
+  // hora de inicio. El servidor rechaza el ajuste si choca con la cita
+  // siguiente (ver api/staff/booking-status.ts).
+  const startEditingDuration = () => {
+    setDurationInput(String(booking.total_duration_minutes));
+    setDurationError(null);
+    setEditingDuration(true);
+  };
+
+  const handleSaveDuration = async () => {
+    const minutes = Math.round(Number(durationInput));
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      setDurationError("Ingresa un número de minutos válido.");
+      return;
+    }
+    setDurationError(null);
+    const result = await updateDuration(booking.id, minutes);
+    if (!result.ok) {
+      setDurationError(result.error);
+      return;
+    }
+    onChanged({ ...booking, total_duration_minutes: minutes });
+    setEditingDuration(false);
   };
 
   return (
@@ -170,6 +199,54 @@ export default function BookingStatusRow({
             {saving ? <FaSpinner className="animate-spin" /> : <FaCheck size={11} />}
             <span className="ml-2">Marcar como completada</span>
           </button>
+        )}
+
+        {booking.status !== "cancelled" && (
+          <div className="flex flex-col items-start gap-1.5 sm:items-end">
+            {editingDuration ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={5}
+                  step={5}
+                  value={durationInput}
+                  onChange={(e) => setDurationInput(e.target.value)}
+                  disabled={saving}
+                  className="w-20 rounded-sm border border-gold/20 bg-obsidian px-2 py-1.5 text-xs text-ivory focus:border-gold focus:outline-none disabled:opacity-50"
+                />
+                <span className="text-xs text-bone/50">min</span>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void handleSaveDuration()}
+                  className="text-xs uppercase tracking-widest2 text-gold transition-colors hover:text-gold-light disabled:opacity-50"
+                >
+                  Guardar
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setEditingDuration(false)}
+                  className="text-xs uppercase tracking-widest2 text-bone/50 transition-colors hover:text-bone/80 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={startEditingDuration}
+                className="flex items-center gap-1.5 text-xs uppercase tracking-widest2 text-bone/50 transition-colors hover:text-gold"
+              >
+                <FaClock size={10} /> Ajustar duración
+              </button>
+            )}
+            {durationError && (
+              <p className="flex items-center gap-1.5 text-xs text-blood">
+                <FaExclamationTriangle size={10} /> {durationError}
+              </p>
+            )}
+          </div>
         )}
 
         {error && (

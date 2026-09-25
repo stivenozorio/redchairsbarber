@@ -1161,6 +1161,31 @@ cancelaciones pendientes de corregir a mano; un futuro panel
 administrativo podrá leer esa misma tabla para mostrarlas y
 resolverlas sin depender del SQL Editor.
 
+**Ajustar la duración de una cita (Fase 4, ajuste).** Un corte a veces
+se demora más (o menos) de lo previsto. Cada reserva (mientras no esté
+cancelada) tiene un botón **"Ajustar duración"** que pide los nuevos
+minutos totales y mueve **solo el fin** de la cita — nunca la hora de
+inicio, así que no hay que recordar ni recalcular a qué hora empezó.
+
+Comparte endpoint con el cambio de estado (`POST
+/api/staff/booking-status`, ahora con un campo `durationMinutes`
+independiente de `status` — se puede mandar cualquiera de los dos, o
+ambos) en vez de crear uno nuevo, por el mismo límite de funciones
+serverless del plan Hobby de Vercel que ya se documentó más arriba.
+Antes de mover nada, valida que el nuevo fin no choque con la cita
+siguiente del mismo barbero — mismo chequeo de disponibilidad
+(`listBusyIntervals` + `isRangeFree`) que ya usa `/api/reschedule` para
+el cliente — y si choca, rechaza el ajuste con un mensaje explicando
+por qué en vez de sobrescribir silenciosamente la agenda. Si pasa esa
+validación, mueve el `end` del evento en Google Calendar y actualiza
+`bookings.ends_at`/`total_duration_minutes` en Supabase.
+
+No valida que el nuevo fin siga cayendo dentro del horario de atención
+del día — a propósito: el corte ya está en curso o ya pasó, así que lo
+único que de verdad importa es no chocar con la cita de después; negar
+el ajuste porque "se sale del horario" cuando ya se salió en la
+realidad no ayudaría a nadie.
+
 ### Estadísticas del club (Fase 4, ajuste)
 
 `/admin/estadisticas` — resumen del club de un vistazo, separado de
