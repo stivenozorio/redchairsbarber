@@ -613,16 +613,43 @@ anterior (loop automático) solo reproducía en algunos navegadores y no
 en otros; con scroll-scrubbing ese problema desaparece de raíz, porque
 nunca se llama `.play()`.
 
-Implementación: `useScroll` de framer-motion da `scrollYProgress` (0 a
-1 solo mientras el hero pasa de estar arriba del todo a salir de la
-vista — `target: heroRef, offset: ["start start", "end start"]`), y
-`useMotionValueEvent(scrollYProgress, "change", ...)` fija
-`video.currentTime = progress * video.duration` en cada cambio, contra
-un `videoRef` directo al elemento (`Number.isFinite(video.duration)`
-evita escribir antes de que cargue el metadata). No hace falta
-pre-extraer frames ni ninguna librería aparte — es el mismo archivo de
-video de siempre, solo que pausado y con el scroll moviendo el
-cabezal.
+**El hero mide 250svh (2.5 pantallas), con el contenido visible
+"pegado" (`sticky top-0`) mientras ese alto extra pasa por detrás** —
+antes medía justo 100svh, así que los 8 segundos del video se
+repartían en un solo scroll de una pantalla: en un scroll rápido (un
+"fling" en el celular) casi todo el recorrido del video pasaba de
+golpe, sintiéndose brusco. Con más alto de por medio, el mismo scroll
+físico mueve el video más gradual, sin cambiar nada del diseño visual
+del hero (`<section>` sigue midiendo 100svh y centrando su contenido
+igual que antes, solo que ahora vive dentro de un contenedor más alto
+en vez de ser la sección misma).
+
+Implementación: `useScroll` de framer-motion da `scrollYProgress` (0
+cuando el contenedor de 250svh empieza a entrar por arriba, 1 cuando
+termina de salir por abajo — `target: heroRef` apunta a ESE
+contenedor, no al `<section>` pegado adentro; `offset: ["start
+start", "end end"]`), y `useMotionValueEvent(scrollYProgress,
+"change", ...)` fija `video.currentTime = progress * video.duration`
+en cada cambio, contra un `videoRef` directo al elemento
+(`Number.isFinite(video.duration)` evita escribir antes de que cargue
+el metadata). No hace falta pre-extraer frames ni ninguna librería
+aparte — es el mismo archivo de video de siempre, solo que pausado y
+con el scroll moviendo el cabezal.
+
+**El otro problema real era el video en sí, no el código:** los
+archivos originales tenían prácticamente un solo keyframe (cuadro
+completo) en los 8 segundos — todo lo demás dependía del cuadro
+anterior. Buscar cualquier punto más allá del primer instante obligaba
+al navegador a decodificar decenas de cuadros en cadena antes de poder
+mostrar uno solo, así que el scroll pedía cuadros más rápido de lo que
+el video lograba entregarlos y la imagen se quedaba "pegada" cerca del
+inicio sin importar cuánto se scrolleara. Se volvieron a codificar los
+dos archivos con un keyframe cada 4 cuadros (`-g 4 -keyint_min 4`, más
+`-sc_threshold 0` en el mp4 para que el intervalo sea fijo y no
+dependa de detección de cortes de escena) — buscar cualquier instante
+ahora exige decodificar como máximo 3 cuadros de más, prácticamente
+instantáneo. El tamaño sube (mp4 ~1.6 MB → ~2.5 MB, webm ~2 MB → ~3.5
+MB) pero sigue siendo razonable para un video de fondo.
 
 **"Priming" para Safari/iOS:** ni bien pasa a scroll-scrubbing, el
 scroll dejaba de moverlo en Safari — Safari ignora `currentTime` en un
@@ -643,16 +670,18 @@ tenía el hero (degradado radial, degradado oscuro de arriba a abajo,
 patrón diagonal dorado) para que el texto siga siendo legible.
 
 **Archivos**, ambos re-codificados con ffmpeg desde el original
-(720×1280, sin audio) — `public/videos/hero-tour.mp4` (H.264,
-`faststart`, ~1.6 MB) y `hero-tour.webm` (VP9, ~2 MB, como `<source>`
-antes del mp4 en el `<video>`: mejor compresión donde el navegador lo
-soporte, con el mp4 como respaldo universal — Safari/iOS no reproduce
-VP9). `hero-tour-poster.jpg` es el primer cuadro, se muestra mientras
-el video carga. El video original de más calidad no se subió al
+(720×1280, sin audio, keyframe cada 4 cuadros) —
+`public/videos/hero-tour.mp4` (H.264, `faststart`, ~2.5 MB) y
+`hero-tour.webm` (VP9, ~3.5 MB, como `<source>` antes del mp4 en el
+`<video>`: mejor compresión donde el navegador lo soporte, con el mp4
+como respaldo universal — Safari/iOS no reproduce VP9).
+`hero-tour-poster.jpg` es el primer cuadro, se muestra mientras el
+video carga. El video original de más calidad no se subió al
 repositorio — si el negocio quiere cambiar el video más adelante, hay
-que repetir el mismo proceso de compresión (los dos formatos) con un
-archivo nuevo, apuntando al mismo nombre de archivo o actualizando la
-ruta en `Home.tsx`.
+que repetir el mismo proceso de compresión (los dos formatos, **con
+`-g 4 -keyint_min 4`** — sin eso vuelve el problema de que el scroll
+no logre moverlo con fluidez) con un archivo nuevo, apuntando al mismo
+nombre de archivo o actualizando la ruta en `Home.tsx`.
 
 ### Canje de productos en línea (Fase 4, ajuste)
 
