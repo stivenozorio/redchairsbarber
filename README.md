@@ -624,6 +624,18 @@ pre-extraer frames ni ninguna librería aparte — es el mismo archivo de
 video de siempre, solo que pausado y con el scroll moviendo el
 cabezal.
 
+**"Priming" para Safari/iOS:** ni bien pasa a scroll-scrubbing, el
+scroll dejaba de moverlo en Safari — Safari ignora `currentTime` en un
+`<video>` que nunca se reprodujo: el número interno cambia, pero no
+redibuja el cuadro nuevo hasta que el video se haya "activado" una vez
+con una reproducción real. La solución (técnica bien conocida para
+scroll-scrubbing en iOS) es un `useEffect` que, apenas carga el
+metadata (`loadedmetadata`), hace `video.play()` seguido de inmediato
+por `video.pause()` — como está `muted`, los navegadores lo permiten
+sin necesitar ningún gesto del usuario. Ese play/pausa silencioso
+"activa" el video sin que nadie lo note, y a partir de ahí buscar
+cuadros a mano sí redibuja lo que corresponde.
+
 Sin sonido (`muted`, `playsInline`, sin pista de audio en ninguno de
 los dos archivos — innecesario ahora que no hay autoplay, pero no
 sobra tenerlo). Encima del video van los mismos tres overlays que ya

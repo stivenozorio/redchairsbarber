@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion, useMotionValueEvent, useScroll } from "framer-motion";
 import {
@@ -54,6 +54,29 @@ export default function Home() {
       video.currentTime = progress * video.duration;
     }
   });
+
+  // Safari (sobre todo en iPhone) ignora currentTime en un video que
+  // nunca se reprodujo — hay que "activarlo" una vez con un play/pausa
+  // silencioso (permitido sin gesto del usuario porque está muted) antes
+  // de que buscar cuadros a mano tenga algún efecto visible. Sin esto,
+  // el scroll movía el número interno de currentTime pero la imagen se
+  // quedaba pegada en el póster.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const prime = () => {
+      video.play().then(
+        () => video.pause(),
+        () => {}
+      );
+    };
+    if (video.readyState >= 1) {
+      prime();
+      return;
+    }
+    video.addEventListener("loadedmetadata", prime, { once: true });
+    return () => video.removeEventListener("loadedmetadata", prime);
+  }, []);
 
   return (
     <div>
