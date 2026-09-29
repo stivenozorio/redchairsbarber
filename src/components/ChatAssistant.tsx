@@ -53,7 +53,7 @@ const TOPICS: Topic[] = [
           ))}
           <li>Experiencias VIP: desde {formatCop(VIP_FROM_PRICE)}</li>
         </ul>
-        <Link to="/servicios" className="mt-2 inline-block text-gold underline">
+        <Link to="/servicios" className="mt-2 inline-block text-scarlet underline">
           Ver el detalle completo
         </Link>
       </div>
@@ -69,7 +69,7 @@ const TOPICS: Topic[] = [
           href={`https://www.google.com/maps?q=${encodeURIComponent(ADDRESS)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-2 inline-block text-gold underline"
+          className="mt-2 inline-block text-scarlet underline"
         >
           Abrir en Google Maps
         </a>
@@ -82,7 +82,7 @@ const TOPICS: Topic[] = [
     answer: (
       <div>
         <p>Puedes reservar en línea eligiendo barbero, servicio y horario disponible.</p>
-        <Link to="/reservar" className="mt-2 inline-block text-gold underline">
+        <Link to="/reservar" className="mt-2 inline-block text-scarlet underline">
           Ir a reservar
         </Link>
       </div>
@@ -95,10 +95,10 @@ const TOPICS: Topic[] = [
       <div>
         <p>Con RED CLUB acumulas puntos en cada visita y los puedes canjear por productos o servicios.</p>
         <div className="mt-2 flex flex-col gap-1">
-          <Link to="/fidelizacion" className="text-gold underline">
+          <Link to="/fidelizacion" className="text-scarlet underline">
             Cómo funciona RED CLUB
           </Link>
-          <Link to="/productos" className="text-gold underline">
+          <Link to="/productos" className="text-scarlet underline">
             Ver productos
           </Link>
         </div>
@@ -164,18 +164,23 @@ export default function ChatAssistant({ hidden = false }: { hidden?: boolean }) 
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.96 }}
             transition={{ duration: 0.2 }}
-            className="flex max-h-[70svh] w-[min(92vw,360px)] flex-col overflow-hidden rounded-sm border border-gold/20 bg-obsidian shadow-card"
+            className="flex max-h-[70svh] w-[min(92vw,360px)] flex-col overflow-hidden rounded-sm border border-blood/30 bg-obsidian shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8),0_0_45px_-12px_rgba(156,18,24,0.4)]"
           >
-            <div className="flex items-center justify-between border-b border-gold/10 bg-charcoal px-4 py-3">
-              <div>
-                <p className="font-display text-sm text-ivory">Asistente Red Chairs</p>
-                <p className="text-[11px] uppercase tracking-widest2 text-bone/50">Preguntas rápidas</p>
+            <div className="flex items-center justify-between gap-3 border-b border-blood/20 bg-gradient-to-r from-ember via-charcoal to-charcoal px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-scarlet to-blood text-[10px] font-bold tracking-wide text-ivory shadow-[0_0_16px_rgba(193,26,32,0.55)]">
+                  RCB
+                </span>
+                <div>
+                  <p className="font-display text-sm text-ivory">Asistente Red Chairs</p>
+                  <p className="text-[11px] uppercase tracking-widest2 text-bone/50">Preguntas rápidas</p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Cerrar asistente"
-                className="shrink-0 text-bone/50 transition-colors hover:text-gold"
+                className="shrink-0 text-bone/50 transition-colors hover:text-scarlet"
               >
                 <FaTimes size={16} />
               </button>
@@ -186,7 +191,9 @@ export default function ChatAssistant({ hidden = false }: { hidden?: boolean }) 
                 <div key={m.id} className={m.from === "user" ? "flex justify-end" : "flex justify-start"}>
                   <div
                     className={`max-w-[85%] rounded-sm px-3 py-2 text-sm leading-relaxed ${
-                      m.from === "user" ? "bg-gold text-obsidian" : "bg-charcoal text-bone/80"
+                      m.from === "user"
+                        ? "bg-gradient-to-br from-scarlet to-blood text-ivory"
+                        : "bg-charcoal text-bone/80"
                     }`}
                   >
                     {m.content}
@@ -195,7 +202,7 @@ export default function ChatAssistant({ hidden = false }: { hidden?: boolean }) 
               ))}
             </div>
 
-            <div className="border-t border-gold/10 px-4 py-3">
+            <div className="border-t border-blood/20 px-4 py-3">
               <p className="mb-2 text-[10px] uppercase tracking-widest2 text-bone/40">Preguntar sobre</p>
               <div className="flex flex-wrap gap-2">
                 {TOPICS.map((topic) => (
@@ -203,7 +210,7 @@ export default function ChatAssistant({ hidden = false }: { hidden?: boolean }) 
                     key={topic.id}
                     type="button"
                     onClick={() => handleTopic(topic)}
-                    className="rounded-full border border-gold/20 px-3 py-1.5 text-xs text-bone/70 transition-colors hover:border-gold/50 hover:text-gold"
+                    className="rounded-full border border-blood/30 px-3 py-1.5 text-xs text-bone/70 transition-colors hover:border-scarlet/70 hover:text-scarlet"
                   >
                     {topic.label}
                   </button>
@@ -213,7 +220,7 @@ export default function ChatAssistant({ hidden = false }: { hidden?: boolean }) 
                 href={WHATSAPP_LINK}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-gold mt-3 flex w-full items-center justify-center gap-2 !py-2.5 text-xs"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-sm bg-[#25D366] py-2.5 text-xs font-bold uppercase tracking-[0.2em] text-obsidian transition-transform duration-300 hover:scale-[1.02]"
               >
                 <FaWhatsapp size={14} /> Escríbenos por WhatsApp
               </a>
@@ -232,9 +239,17 @@ export default function ChatAssistant({ hidden = false }: { hidden?: boolean }) 
             transition={{ duration: 0.25 }}
             onClick={handleToggle}
             aria-label={open ? "Cerrar asistente" : "Abrir asistente"}
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-gold font-display text-sm font-bold tracking-wide text-obsidian shadow-[0_10px_30px_rgba(0,0,0,0.5)] transition-transform duration-300 hover:scale-110"
+            className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-scarlet to-blood font-display text-sm font-bold tracking-wide text-ivory shadow-[0_10px_35px_rgba(193,26,32,0.5)] transition-transform duration-300 hover:scale-110"
           >
-            {open ? <FaTimes size={20} /> : "RCB"}
+            {!open && (
+              <motion.span
+                aria-hidden
+                className="absolute inset-0 rounded-full bg-scarlet"
+                animate={{ scale: [1, 1.6], opacity: [0.55, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+              />
+            )}
+            <span className="relative z-10">{open ? <FaTimes size={20} /> : "RCB"}</span>
           </motion.button>
         )}
       </AnimatePresence>

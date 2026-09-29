@@ -693,6 +693,14 @@ inferior derecha). Solo aparece después de scrollear más de 400px
 se muestra desde el primer instante, para no competir visualmente con
 el hero.
 
+**En rojo** (degradado `scarlet` → `blood`, los mismos tonos de marca
+que ya existían en `tailwind.config.js`, nunca `gold` — para que se
+lea como su propia identidad dentro del sitio, no como un botón más),
+con un pulso sutil alrededor mientras está cerrado para que se note
+que es interactivo. El globo de WhatsApp de adentro del panel se deja
+en su verde de marca a propósito — es un enlace a otra app, no tendría
+sentido teñirlo de rojo.
+
 **No es un asistente de IA real** (no llama a ningún modelo de
 lenguaje, no hay costo variable por conversación, ni un endpoint nuevo
 de por medio): al abrirlo se ve como un chat, pero las respuestas son
