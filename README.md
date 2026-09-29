@@ -683,6 +683,37 @@ que repetir el mismo proceso de compresión (los dos formatos, **con
 no logre moverlo con fluidez) con un archivo nuevo, apuntando al mismo
 nombre de archivo o actualizando la ruta en `Home.tsx`.
 
+### Asistente flotante "RCB" (sitio completo)
+
+Botón flotante circular con las iniciales **"RCB"**
+(`ChatAssistant.tsx`) en todas las páginas públicas — **reemplaza** al
+botón fijo de WhatsApp que había antes en ese mismo lugar (esquina
+inferior derecha). Solo aparece después de scrollear más de 400px
+(`window.scrollY > 400`, con un listener de `scroll`) — a propósito no
+se muestra desde el primer instante, para no competir visualmente con
+el hero.
+
+**No es un asistente de IA real** (no llama a ningún modelo de
+lenguaje, no hay costo variable por conversación, ni un endpoint nuevo
+de por medio): al abrirlo se ve como un chat, pero las respuestas son
+fijas, armadas con los mismos datos que ya usa el resto del sitio
+(`data/site.ts` para horarios/dirección, `data/services.ts` para
+precios por categoría) — es una guía de preguntas frecuentes con
+formato de conversación, elegido a propósito en vez de una IA real
+porque conectar un modelo de lenguaje de verdad requiere una API key
+de pago y, ahora mismo, otra función serverless — y el sitio ya casi
+llega al límite del plan Hobby de Vercel (ver la nota más abajo, en
+"Límite de funciones serverless").
+
+Cinco temas fijos (Horarios, Servicios y precios, Ubicación, Reservar
+cita, Productos y puntos): al tocar uno, se agrega la pregunta (a la
+derecha, como si la hubiera escrito el usuario) y la respuesta (a la
+izquierda) a la conversación, y los mismos botones de tema se quedan
+disponibles para seguir preguntando otra cosa. **El botón "Escríbenos
+por WhatsApp" queda siempre visible al fondo del panel**, para
+cualquier pregunta que no esté en la lista — el mismo `WHATSAPP_LINK`
+que usaba el botón anterior.
+
 ### Canje de productos en línea (Fase 4, ajuste)
 
 Migración `0025_product_redemptions.sql`. Desde `/productos`, un

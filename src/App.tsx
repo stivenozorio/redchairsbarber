@@ -3,7 +3,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { FaSpinner } from "react-icons/fa";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-import WhatsAppButton from "./components/WhatsAppButton";
+import ChatAssistant from "./components/ChatAssistant";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthProvider from "./auth/AuthProvider";
 import Home from "./pages/Home";
@@ -134,7 +134,7 @@ function App() {
         </Suspense>
       </main>
       {!isBare && <Footer />}
-      {!isBare && <WhatsAppButton hidden={menuOpen} />}
+      {!isBare && <ChatAssistant hidden={menuOpen} />}
     </div>
   );
 }
