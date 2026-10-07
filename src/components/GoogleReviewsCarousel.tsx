@@ -92,15 +92,24 @@ export default function GoogleReviewsCarousel() {
         "X-Goog-FieldMask": "rating,userRatingCount,reviews",
       },
     })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Places API respondió ${res.status}`);
-        return res.json();
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          // Google manda el motivo exacto en el cuerpo de la respuesta
+          // (por ejemplo "Invalid Place ID", "API key not valid", etc.) —
+          // mostrarlo tal cual ahorra tener que adivinar entre Place ID
+          // mal copiado, API sin activar, o clave sin el dominio
+          // correcto en la restricción.
+          const reason = data?.error?.message ?? `sin detalle (status ${res.status})`;
+          throw new Error(`Places API respondió ${res.status} — ${reason}`);
+        }
+        return data as PlaceDetails;
       })
-      .then((data: PlaceDetails) => {
+      .then((data) => {
         if (active) setPlace(data);
       })
       .catch((error) => {
-        console.warn("[google-reviews]", error);
+        console.warn("[google-reviews]", error.message ?? error);
         if (active) setFailed(true);
       });
 
