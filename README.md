@@ -722,6 +722,61 @@ por WhatsApp" queda siempre visible al fondo del panel**, para
 cualquier pregunta que no esté en la lista — el mismo `WHATSAPP_LINK`
 que usaba el botón anterior.
 
+### Reseñas de Google en el inicio (Home)
+
+Justo después del hero (antes de "¿Por qué elegir Red Chairs?" —
+`GoogleReviewsCarousel.tsx`) hay un carrusel con las reseñas reales del
+negocio en Google: calificación promedio, total de reseñas, y hasta 5
+reseñas individuales (nombre, foto, estrellas, texto), con flechas y
+puntos para navegar y auto-avance cada 7 segundos. **Reemplazó** a una
+sección de testimonios de ejemplo inventados que vivía más abajo en la
+misma página ("Lo que dicen nuestros clientes") — tener reseñas reales
+arriba y testimonios inventados abajo habría sido confuso y redundante,
+así que esa sección y sus archivos (`TestimonialCard.tsx`,
+`data/testimonials.ts`) se eliminaron.
+
+**Se piden en vivo desde el navegador a Google Places API (New)** (no
+hay endpoint propio de por medio) — mismo patrón que `isSupabaseConfigured`
+en `lib/supabase.ts`: si faltan `VITE_GOOGLE_PLACE_ID` o
+`VITE_GOOGLE_PLACES_API_KEY`, o si Google no responde (clave sin
+restringir bien, dominio equivocado, etc.), la sección completa
+**no se muestra** — nunca un "cargando" colgado ni un error a la vista
+de un cliente real; el motivo del fallo queda en la consola del
+navegador (`console.warn`) para quien esté revisando.
+
+**Cómo conseguir el Place ID y la API key:**
+
+1. Busca el negocio en el *Place ID Finder* de Google
+   (`developers.google.com/maps/documentation/places/web-service/place-id`)
+   y copia el Place ID (empieza con `ChIJ…`).
+2. En `console.cloud.google.com`, crea un proyecto, activa **"Places
+   API (New)"** y agrega una forma de pago (Google la exige para esta
+   API, aunque hay uso gratuito mensual — revisa los precios vigentes
+   en Google Maps Platform, cambian).
+3. Crea una API key y **restríngela**: por dominio (el o los dominios
+   reales donde vive el sitio) y por API (solo "Places API (New)").
+   Sin esa restricción, la clave queda expuesta sin protección — con
+   ella, es el mecanismo de seguridad que usa Google para este tipo de
+   clave pensada para el navegador.
+4. Pon las dos variables en Vercel (Settings → Environment Variables)
+   y en `.env` localmente — ver `.env.example`.
+
+**Decisión de diseño, no un descuido:** la clave de API queda visible
+en el código que descarga el navegador (`import.meta.env.VITE_*`,
+igual que la anon key de Supabase) — es el uso normal de una "clave de
+navegador" en Google Maps Platform, protegida por la restricción de
+dominio del paso 3, no por mantenerla en secreto. Intentar esconderla
+detrás de un endpoint propio solo para esto habría sumado una función
+serverless más al límite del plan Hobby (ver más abajo) sin ganar
+seguridad real.
+
+**Limitaciones de Google, no de este componente:** la API solo entrega
+un máximo de 5 reseñas (las que Google considera más relevantes, sin
+poder elegir cuáles); y cada carga de página hace una llamada en vivo
+a Google (no hay caché) — para el tráfico de una barbería esto se
+espera que quede dentro del uso gratuito, pero vale la pena tenerlo en
+cuenta si el tráfico creciera mucho.
+
 ### Canje de productos en línea (Fase 4, ajuste)
 
 Migración `0025_product_redemptions.sql`. Desde `/productos`, un

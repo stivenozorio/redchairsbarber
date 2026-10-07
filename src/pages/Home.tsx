@@ -15,12 +15,11 @@ import Reveal from "../components/Reveal";
 import SectionHeading from "../components/SectionHeading";
 import ServiceCard from "../components/ServiceCard";
 import LoyaltyCard from "../components/LoyaltyCard";
-import TestimonialCard from "../components/TestimonialCard";
 import GalleryTile from "../components/GalleryTile";
+import GoogleReviewsCarousel from "../components/GoogleReviewsCarousel";
 import { LogoBadge } from "../components/Logo";
 import { SERVICE_CATEGORIES, VIP_EXPERIENCES } from "../data/services";
 import { LOYALTY_TIERS } from "../data/loyalty";
-import { TESTIMONIALS } from "../data/testimonials";
 import { GALLERY_ITEMS } from "../data/gallery";
 import { TAGLINE_SECONDARY } from "../data/site";
 import { isSupabaseConfigured } from "../lib/supabase";
@@ -228,6 +227,8 @@ export default function Home() {
         </section>
       </div>
 
+      <GoogleReviewsCarousel />
+
       {/* WHY CHOOSE US */}
       <section className="border-t border-gold/10 bg-obsidian py-28">
         <div className="container-lux">
@@ -322,21 +323,6 @@ export default function Home() {
               Conocer el programa completo
             </Link>
           </Reveal>
-        </div>
-      </section>
-
-      {/* TESTIMONIOS */}
-      <section className="border-t border-gold/10 bg-obsidian py-28">
-        <div className="container-lux">
-          <SectionHeading
-            eyebrow="Voces Red Chairs"
-            title="Lo que dicen nuestros clientes"
-          />
-          <div className="mt-16 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {TESTIMONIALS.map((t, i) => (
-              <TestimonialCard key={t.name} t={t} delay={i * 0.1} />
-            ))}
-          </div>
         </div>
       </section>
 
