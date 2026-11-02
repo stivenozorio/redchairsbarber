@@ -7,6 +7,7 @@ import { getActiveBarbers } from "../_lib/catalogRepo.js";
 import { listBusyIntervals, isRangeFree } from "../_lib/availability.js";
 import { createBookingRecord, attachGoogleEvent, discardBooking } from "../_lib/bookingsRepo.js";
 import { sendApiError } from "../_lib/http.js";
+import { applyCors } from "../_lib/cors.js";
 
 /**
  * Bloquea un horario específico de un barbero para un cliente
@@ -51,6 +52,7 @@ function assertValidDuration(value: unknown): asserts value is number {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "Método no permitido" });
     return;

@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "../auth/useAuth";
+import { apiUrl } from "../lib/apiBase";
 import type { BookingStatus } from "../types/club";
 
 interface UpdateResult {
@@ -29,7 +30,7 @@ export function useUpdateBookingStatus() {
 
       setUpdatingId(bookingId);
       try {
-        const res = await fetch("/api/staff/booking-status", {
+        const res = await fetch(apiUrl("/api/staff/booking-status"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

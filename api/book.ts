@@ -12,6 +12,7 @@ import { getEffectiveHours } from "./_lib/scheduleRepo.js";
 import { getActiveBarbers, getActiveServicesCatalog } from "./_lib/catalogRepo.js";
 import { listBusyIntervals, isRangeFree } from "./_lib/availability.js";
 import { sendApiError } from "./_lib/http.js";
+import { applyCors } from "./_lib/cors.js";
 import { getUserIdFromRequest } from "./_lib/auth.js";
 import {
   attachGoogleEvent,
@@ -62,6 +63,7 @@ async function isBarberFree(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "Método no permitido" });
     return;

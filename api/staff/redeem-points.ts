@@ -3,6 +3,7 @@ import { requireStaffUserId, StaffAuthError } from "../_lib/auth.js";
 import { adminRedeemPoints, adminAwardPoints } from "../_lib/pointsRepo.js";
 import { InvalidScheduleInputError } from "../_lib/schedule.js";
 import { sendApiError } from "../_lib/http.js";
+import { applyCors } from "../_lib/cors.js";
 
 /**
  * Ajustes de puntos hechos a mano por un administrador desde
@@ -30,6 +31,7 @@ interface RequestBody {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "Método no permitido" });
     return;

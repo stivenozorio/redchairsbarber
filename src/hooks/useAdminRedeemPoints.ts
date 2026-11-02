@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "../auth/useAuth";
+import { apiUrl } from "../lib/apiBase";
 
 interface PointsAdjustmentResult {
   ok: boolean;
@@ -29,7 +30,7 @@ export function useAdminRedeemPoints() {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
 
-        const res = await fetch("/api/staff/redeem-points", {
+        const res = await fetch(apiUrl("/api/staff/redeem-points"), {
           method: "POST",
           headers,
           body: JSON.stringify({ action, userId, points, description }),

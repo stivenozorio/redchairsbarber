@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getCalendarClient, getCalendarIdForBarber, isBarberId } from "./_lib/googleCalendar.js";
 import { InvalidScheduleInputError } from "./_lib/schedule.js";
 import { sendApiError } from "./_lib/http.js";
+import { applyCors } from "./_lib/cors.js";
 import { getUserIdFromRequest } from "./_lib/auth.js";
 import { cancelBookingByEventId, getBookingByEventId, LOCKED_BOOKING_STATUSES } from "./_lib/bookingsRepo.js";
 
@@ -11,6 +12,7 @@ interface CancelRequestBody {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST" && req.method !== "DELETE") {
     res.status(405).json({ error: "Método no permitido" });
     return;

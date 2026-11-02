@@ -69,6 +69,58 @@ redirigir a WhatsApp — si falla, se muestra un error y no se abre
 WhatsApp (evita mensajes de "reserva confirmada" cuando en realidad no
 se creó ningún evento).
 
+## Despliegue
+
+El despliegue normal es todo en Vercel: el sitio estático y las
+funciones de `/api` en el mismo dominio, sin configuración extra — es
+lo que asumen el resto de las secciones de este README.
+
+### Frontend y backend en dominios distintos
+
+También se puede separar: el **frontend** (el build estático de
+`dist/`) en otro hosting — por ejemplo un subdominio de GoDaddy
+(`redchairsbarber.digicyus.com`) — y el **backend** (las funciones
+serverless de `/api`, que necesitan Node y no corren en un hosting
+estático) quedándose en Vercel. Ambos se comunican por HTTP normal,
+habilitado con CORS.
+
+Dos variables de entorno, una en cada lado:
+
+- **En Vercel** (backend), `ALLOWED_ORIGINS`: lista separada por comas
+  de los dominios desde los que la API debe aceptar peticiones.
+  ```
+  ALLOWED_ORIGINS=https://redchairsbarber.digicyus.com
+  ```
+  Sin esto, el navegador bloquea toda petición hecha desde un dominio
+  distinto al de la API (la política de CORS vive en
+  `api/_lib/cors.ts`, aplicada al inicio de cada endpoint).
+
+- **En el build del frontend**, `VITE_API_BASE_URL`: dónde vive la API,
+  cuando no es el mismo dominio del sitio.
+  ```
+  VITE_API_BASE_URL=https://redchairsbarber.vercel.app
+  ```
+  Vacía por defecto: el frontend sigue llamando a rutas relativas
+  (`/api/...`), que es lo correcto cuando todo está junto en Vercel.
+
+Pasos para desplegar el frontend aparte (ej. en GoDaddy):
+
+1. En Vercel, agrega `ALLOWED_ORIGINS` con el dominio nuevo y vuelve a
+   desplegar — esto NO quita nada de lo que ya funciona en Vercel, solo
+   permite que además responda a otro origen.
+2. Compila el frontend localmente con `VITE_API_BASE_URL` apuntando a
+   esa URL de Vercel: `VITE_API_BASE_URL=https://tu-proyecto.vercel.app npm run build`.
+3. Sube el contenido de `dist/` al subdominio (cPanel → Administrador
+   de archivos, o FTP). Es un sitio estático: no necesita Node ni
+   "Setup Node.js App" en GoDaddy, solo servir los archivos.
+4. **Supabase** → Authentication → URL Configuration → agrega el nuevo
+   dominio a "Redirect URLs" (ej.
+   `https://redchairsbarber.digicyus.com/club/callback`,
+   `/club/restablecer`, etc.) — si no, el login con Google y los
+   enlaces de restablecer contraseña redirigen al dominio viejo.
+5. **Google Cloud Console** (reseñas de Google, si están activas) →
+   restringe la API key también al dominio nuevo, además del de Vercel.
+
 ## Integración con Google Calendar
 
 Las reservas se validan y se crean como eventos reales en Google

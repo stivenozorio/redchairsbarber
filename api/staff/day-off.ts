@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "../_lib/supabaseAdmin.js";
 import { isBarberId } from "../_lib/googleCalendar.js";
 import { assertValidDate, InvalidScheduleInputError } from "../_lib/schedule.js";
 import { sendApiError } from "../_lib/http.js";
+import { applyCors } from "../_lib/cors.js";
 
 /**
  * Bloquea (o desbloquea) un día completo de la agenda de un barbero —
@@ -32,6 +33,7 @@ interface RequestBody {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST" && req.method !== "DELETE") {
     res.status(405).json({ error: "Método no permitido" });
     return;

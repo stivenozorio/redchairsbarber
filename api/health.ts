@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { applyCors } from "./_lib/cors.js";
 import { getMissingSupabaseEnvVars, getSupabaseAdmin } from "./_lib/supabaseAdmin.js";
 import {
   BARBER_IDS,
@@ -131,6 +132,7 @@ function describePostgrestError(error: {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res)) return;
   if (req.method !== "GET") {
     res.status(405).json({ error: "Método no permitido" });
     return;

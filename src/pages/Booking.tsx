@@ -30,6 +30,7 @@ import { useAuth } from "../auth/useAuth";
 import { useServiceOverrides } from "../hooks/useServiceOverrides";
 import { useActiveBarberIds } from "../hooks/useActiveBarberIds";
 import { useMemberSummary } from "../hooks/useMemberSummary";
+import { apiUrl } from "../lib/apiBase";
 
 const fieldClass =
   "w-full rounded-sm border border-gold/20 bg-obsidian px-5 py-4 text-sm text-ivory placeholder:text-bone/40 focus:border-gold focus:outline-none transition-colors disabled:opacity-50";
@@ -128,7 +129,7 @@ async function fetchAvailability(
   try {
     const query = new URLSearchParams({ date, barberId }).toString();
     const servicesParam = serviceIds.map(encodeURIComponent).join(",");
-    const res = await fetch(`/api/availability?${query}&services=${servicesParam}`);
+    const res = await fetch(apiUrl(`/api/availability?${query}&services=${servicesParam}`));
     if (!res.ok) return null;
     const data = (await res.json()) as { slots: AvailabilitySlot[] };
     return data.slots;
@@ -319,7 +320,7 @@ export default function Booking() {
         headers.Authorization = `Bearer ${session.access_token}`;
       }
 
-      const res = await fetch("/api/book", {
+      const res = await fetch(apiUrl("/api/book"), {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -423,7 +424,7 @@ export default function Booking() {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-      const res = await fetch("/api/cancel", {
+      const res = await fetch(apiUrl("/api/cancel"), {
         method: "POST",
         headers,
         body: JSON.stringify({ eventId: myBooking.id, barberId: myBooking.barberId }),
@@ -463,7 +464,7 @@ export default function Booking() {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-      const res = await fetch("/api/reschedule", {
+      const res = await fetch(apiUrl("/api/reschedule"), {
         method: "POST",
         headers,
         body: JSON.stringify({

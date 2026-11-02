@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "../auth/useAuth";
+import { apiUrl } from "../lib/apiBase";
 
 interface RedeemResult {
   ok: boolean;
@@ -20,7 +21,7 @@ export function useRedeemProduct() {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
 
-        const res = await fetch("/api/redeem-product", {
+        const res = await fetch(apiUrl("/api/redeem-product"), {
           method: "POST",
           headers,
           body: JSON.stringify({ productId }),

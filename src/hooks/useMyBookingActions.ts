@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "../auth/useAuth";
+import { apiUrl } from "../lib/apiBase";
 
 interface ActionResult {
   ok: boolean;
@@ -25,7 +26,7 @@ export function useMyBookingActions() {
     async (eventId: string, barberId: string): Promise<ActionResult> => {
       setCancelling(true);
       try {
-        const res = await fetch("/api/cancel", {
+        const res = await fetch(apiUrl("/api/cancel"), {
           method: "POST",
           headers: authHeaders(),
           body: JSON.stringify({ eventId, barberId }),
@@ -48,7 +49,7 @@ export function useMyBookingActions() {
     async (eventId: string, barberId: string, date: string, time: string): Promise<ActionResult> => {
       setRescheduling(true);
       try {
-        const res = await fetch("/api/reschedule", {
+        const res = await fetch(apiUrl("/api/reschedule"), {
           method: "POST",
           headers: authHeaders(),
           body: JSON.stringify({ eventId, barberId, date, time }),

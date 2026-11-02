@@ -17,6 +17,7 @@ import { getEffectiveHours } from "./_lib/scheduleRepo.js";
 import { getActiveBarberIds, getActiveServicesCatalog } from "./_lib/catalogRepo.js";
 import { listBusyIntervals, isRangeFree, type BusyInterval } from "./_lib/availability.js";
 import { sendApiError } from "./_lib/http.js";
+import { applyCors } from "./_lib/cors.js";
 import { TIME_SLOTS } from "../src/data/booking.js";
 import { sumServiceTotals } from "../src/data/services.js";
 
@@ -29,6 +30,7 @@ function parseServicesParam(raw: string | string[] | undefined): string[] {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res)) return;
   if (req.method !== "GET") {
     res.status(405).json({ error: "Método no permitido" });
     return;

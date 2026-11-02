@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "../auth/useAuth";
+import { apiUrl } from "../lib/apiBase";
 
 interface ActionResult {
   ok: boolean;
@@ -23,7 +24,7 @@ export function useProductRedemptionActions() {
     async (action: "fulfill" | "cancel", redemptionId: string): Promise<ActionResult> => {
       setUpdatingId(redemptionId);
       try {
-        const res = await fetch("/api/staff/product-redemption", {
+        const res = await fetch(apiUrl("/api/staff/product-redemption"), {
           method: "POST",
           headers: authHeaders(),
           body: JSON.stringify({ redemptionId, action }),

@@ -5,6 +5,7 @@ import { getCalendarClient, getCalendarIdForBarber, isBarberId, TIMEZONE } from 
 import { listBusyIntervals, isRangeFree } from "../_lib/availability.js";
 import { logCalendarSyncError } from "../_lib/calendarSyncLog.js";
 import { sendApiError } from "../_lib/http.js";
+import { applyCors } from "../_lib/cors.js";
 import { InvalidScheduleInputError } from "../_lib/schedule.js";
 
 /**
@@ -80,6 +81,7 @@ function isAlreadyGoneError(error: unknown): boolean {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST" && req.method !== "PATCH") {
     res.status(405).json({ error: "Método no permitido" });
     return;

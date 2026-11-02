@@ -3,6 +3,7 @@ import { getUserIdFromRequest } from "./_lib/auth.js";
 import { redeemProductForPoints } from "./_lib/pointsRepo.js";
 import { InvalidScheduleInputError } from "./_lib/schedule.js";
 import { sendApiError } from "./_lib/http.js";
+import { applyCors } from "./_lib/cors.js";
 
 /**
  * Canje de un producto EN LÍNEA, desde /productos — el cliente
@@ -23,6 +24,7 @@ interface RequestBody {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).json({ error: "Método no permitido" });
     return;

@@ -9,6 +9,7 @@ import {
 import { getEffectiveHours } from "./_lib/scheduleRepo.js";
 import { listBusyIntervals, isRangeFree } from "./_lib/availability.js";
 import { sendApiError } from "./_lib/http.js";
+import { applyCors } from "./_lib/cors.js";
 import { getUserIdFromRequest } from "./_lib/auth.js";
 import {
   getBookingByEventId,
@@ -24,6 +25,7 @@ interface RescheduleRequestBody {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST" && req.method !== "PATCH") {
     res.status(405).json({ error: "Método no permitido" });
     return;

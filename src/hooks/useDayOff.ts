@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "../auth/useAuth";
+import { apiUrl } from "../lib/apiBase";
 
 interface ActionResult {
   ok: boolean;
@@ -22,7 +23,7 @@ export function useDayOff() {
     async (barberId: string, date: string, note?: string): Promise<ActionResult> => {
       setSaving(true);
       try {
-        const res = await fetch("/api/staff/day-off", {
+        const res = await fetch(apiUrl("/api/staff/day-off"), {
           method: "POST",
           headers: authHeaders(),
           body: JSON.stringify({ barberId, date, note }),
@@ -45,7 +46,7 @@ export function useDayOff() {
     async (barberId: string, date: string): Promise<ActionResult> => {
       setSaving(true);
       try {
-        const res = await fetch("/api/staff/day-off", {
+        const res = await fetch(apiUrl("/api/staff/day-off"), {
           method: "DELETE",
           headers: authHeaders(),
           body: JSON.stringify({ barberId, date }),

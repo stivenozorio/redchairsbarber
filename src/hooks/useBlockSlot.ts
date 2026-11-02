@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "../auth/useAuth";
+import { apiUrl } from "../lib/apiBase";
 
 interface BlockSlotInput {
   barberId: string;
@@ -27,7 +28,7 @@ export function useBlockSlot() {
 
       setBlocking(true);
       try {
-        const res = await fetch("/api/staff/block-slot", {
+        const res = await fetch(apiUrl("/api/staff/block-slot"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
