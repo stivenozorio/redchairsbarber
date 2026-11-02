@@ -127,10 +127,10 @@ Una vez el frontend ya está funcionando bien en el dominio nuevo,
 `vercel.json` muestra `public/moved.html` para cualquier visita a
 `redchairsbarber.vercel.app` (menos `/api/*`, que sigue respondiendo
 normal ahí, invisible para quien visita el sitio). Esa página explica
-que el sitio se mudó, con un enlace a `redchairsbarber.digicyus.com`
-y lleva automáticamente ahí a los 5 segundos si nadie hace clic antes
-— conservando la ruta original (ej. alguien con `/reservar` guardado
-en favoritos llega a `/reservar` en el dominio nuevo, no al inicio).
+que el sitio se mudó, con un botón a `redchairsbarber.digicyus.com`
+que conserva la ruta original (ej. alguien con `/reservar` guardado en
+favoritos llega a `/reservar` en el dominio nuevo, no al inicio) — sin
+redirigir sola, la persona decide cuándo hacer clic.
 
 Es reversible: para volver a servir el frontend directo desde
 Vercel, basta con quitar el `rewrite` hacia `moved.html` de

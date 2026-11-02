@@ -82,17 +82,6 @@
       a.cta:hover {
         background: #e6d3a3;
       }
-      .countdown {
-        margin-top: 24px;
-        font-size: 0.8rem;
-        color: #8a7038;
-      }
-      .divider {
-        width: 96px;
-        height: 1px;
-        margin: 28px auto;
-        background: linear-gradient(90deg, transparent, #c9a961, transparent);
-      }
     </style>
   </head>
   <body>
@@ -105,25 +94,13 @@
         Actualiza tus enlaces guardados — ahí sigue todo: reservas, servicios y tu cuenta RED CLUB.
       </p>
       <a class="cta" id="go" href="https://redchairsbarber.digicyus.com/">Ir al sitio nuevo</a>
-      <div class="divider"></div>
-      <p class="countdown" id="countdown">Te llevamos automáticamente en 5 segundos…</p>
     </div>
     <script>
       (function () {
+        // Mantiene la ruta original (ej. /reservar) al pasar al dominio
+        // nuevo, sin navegar solo: la persona decide cuando hacer clic.
         var destination = "https://redchairsbarber.digicyus.com" + window.location.pathname + window.location.search + window.location.hash;
         document.getElementById("go").href = destination;
-
-        var seconds = 5;
-        var el = document.getElementById("countdown");
-        var timer = setInterval(function () {
-          seconds -= 1;
-          if (seconds <= 0) {
-            clearInterval(timer);
-            window.location.href = destination;
-            return;
-          }
-          el.textContent = "Te llevamos automáticamente en " + seconds + " segundos…";
-        }, 1000);
       })();
     </script>
   </body>
