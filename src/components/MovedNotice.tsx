@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { LogoBadge } from "./Logo";
 
 /**
@@ -8,12 +9,24 @@ import { LogoBadge } from "./Logo";
  * aparte del proyecto en Vercel, siempre se muestra.
  */
 const NEW_ORIGIN = "https://redchairsbarber.digicyus.com";
+const REDIRECT_SECONDS = 8;
 
 export default function MovedNotice() {
   const homeDestination =
     typeof window === "undefined"
       ? NEW_ORIGIN
       : `${NEW_ORIGIN}${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+  const [secondsLeft, setSecondsLeft] = useState(REDIRECT_SECONDS);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) {
+      window.location.href = homeDestination;
+      return;
+    }
+    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [secondsLeft, homeDestination]);
 
   return (
     <section className="flex min-h-[100svh] flex-col items-center justify-center overflow-hidden bg-obsidian px-6 text-center">
@@ -43,6 +56,10 @@ export default function MovedNotice() {
             Reservar cita
           </a>
         </div>
+
+        <p className="mt-8 text-xs uppercase tracking-widest2 text-gold-dark">
+          Te llevamos automáticamente en {secondsLeft} segundo{secondsLeft === 1 ? "" : "s"}…
+        </p>
       </div>
     </section>
   );
