@@ -124,17 +124,30 @@ Pasos para desplegar el frontend aparte (ej. en GoDaddy):
 ### Aviso en el dominio viejo de Vercel
 
 Una vez el frontend ya está funcionando bien en el dominio nuevo,
-`vercel.json` muestra `public/moved.html` para cualquier visita a
-`redchairsbarber.vercel.app` (menos `/api/*`, que sigue respondiendo
-normal ahí, invisible para quien visita el sitio). Esa página explica
-que el sitio se mudó, con un botón a `redchairsbarber.digicyus.com`
-que conserva la ruta original (ej. alguien con `/reservar` guardado en
-favoritos llega a `/reservar` en el dominio nuevo, no al inicio) — sin
-redirigir sola, la persona decide cuándo hacer clic.
+quien visita `redchairsbarber.vercel.app` ve un aviso (`MovedNotice.tsx`)
+en vez del sitio normal, explicando que la barbería se mudó, con
+botones a `redchairsbarber.digicyus.com` (inicio y reservar).
 
-Es reversible: para volver a servir el frontend directo desde
-Vercel, basta con quitar el `rewrite` hacia `moved.html` de
-`vercel.json`.
+El chequeo vive directo en `App.tsx` (`OLD_VERCEL_HOSTNAME`): si
+`window.location.hostname` coincide, se muestra `<MovedNotice />` en
+vez de `<Routes>`, para cualquier ruta. Se eligió así — código del
+propio React en vez de un `rewrite`/`redirect` en `vercel.json` —
+porque ese dominio tenía activada **Vercel Authentication**
+("Deployment Protection" en Settings), que exigía iniciar sesión en
+Vercel para ver cualquier cosa del proyecto, `rewrite` incluido; con
+Vercel Authentication desactivada esto ya no debería hacer falta, pero
+queda así de todas formas por si se reactiva sin querer: el aviso se
+sigue mostrando pase lo que pase con esa configuración.
+
+El intento anterior (`public/moved.html` servido vía `rewrite` de
+`vercel.json`) se eliminó — `vercel.json` volvió a su rewrite
+original de SPA (`/(.*)` → `/index.html`), que además es justo lo que
+este enfoque necesita: cualquier ruta debe cargar el React para que el
+chequeo de hostname pueda actuar.
+
+Es reversible: para volver a servir el sitio normal desde
+`redchairsbarber.vercel.app`, basta con borrar el bloque `if
+(isOldDomain)` de `App.tsx`.
 
 ## Integración con Google Calendar
 

@@ -4,6 +4,7 @@ import { FaSpinner } from "react-icons/fa";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import ChatAssistant from "./components/ChatAssistant";
+import MovedNotice from "./components/MovedNotice";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthProvider from "./auth/AuthProvider";
 import Home from "./pages/Home";
@@ -68,10 +69,24 @@ const BARE_ROUTES = [
   "/club/callback",
 ];
 
+/** Dominio viejo del proyecto en Vercel: el frontend real ya vive en
+ * digicyus.com (ver README → "Frontend y backend en dominios
+ * distintos"). En vez de depender de la configuración de
+ * redirecciones/rewrites del proyecto en Vercel, se revisa el
+ * hostname directo en el bundle — así siempre se muestra, sea cual
+ * sea esa configuración. */
+const OLD_VERCEL_HOSTNAME = "redchairsbarber.vercel.app";
+
 function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
   const isBare = BARE_ROUTES.includes(pathname);
+  const isOldDomain =
+    typeof window !== "undefined" && window.location.hostname === OLD_VERCEL_HOSTNAME;
+
+  if (isOldDomain) {
+    return <MovedNotice />;
+  }
 
   return (
     <div className="min-h-screen bg-obsidian text-ivory">
