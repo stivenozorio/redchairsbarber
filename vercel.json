@@ -1,12 +1,7 @@
 {
-  "redirects": [
-    {
-      "source": "/:path((?!api/).*)",
-      "destination": "https://redchairsbarber.digicyus.com/:path",
-      "permanent": false
-    }
+  "rewrites": [
+    { "source": "/:path((?!api/).*)", "destination": "/moved.html" }
   ],
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",
