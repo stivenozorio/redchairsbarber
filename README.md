@@ -121,6 +121,18 @@ Pasos para desplegar el frontend aparte (ej. en GoDaddy):
 5. **Google Cloud Console** (reseñas de Google, si están activas) →
    restringe la API key también al dominio nuevo, además del de Vercel.
 
+### Redirigir el dominio viejo de Vercel al nuevo
+
+Una vez el frontend ya está funcionando bien en el dominio nuevo,
+`vercel.json` redirige automáticamente cualquier visita a
+`redchairsbarber.vercel.app` hacia `redchairsbarber.digicyus.com` —
+para que nadie use por accidente la URL vieja. Las funciones de
+`/api` quedan excluidas a propósito (siguen respondiendo
+normalmente ahí, invisibles para quien visita el sitio).
+
+Es reversible: para volver a servir el frontend directo desde
+Vercel, basta con quitar el bloque `redirects` de `vercel.json`.
+
 ## Integración con Google Calendar
 
 Las reservas se validan y se crean como eventos reales en Google
