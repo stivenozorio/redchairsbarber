@@ -1054,6 +1054,13 @@ Incluye:
   ajuste), leídos de `club_member_summary` en una segunda consulta
   aparte de `profiles` — informativa, no bloqueante: si falla, la lista
   de clientes se sigue mostrando, solo sin el badge de puntos.
+  Botón **"Exportar CSV"** (Fase 4, ajuste): descarga nombre, correo,
+  teléfono y fecha de registro de todos los clientes que coincidan con
+  la búsqueda actual (todos si no hay búsqueda) — pensado para subir
+  ese archivo a una herramienta de envíos masivos (WhatsApp Business,
+  Mailchimp, etc.), ya que el sitio en sí no manda mensajes masivos:
+  el único contacto saliente que existe hoy es el enlace de WhatsApp
+  de una reserva, iniciado por el cliente, nunca por la barbería.
 - **Servicios** — precio, duración y categoría son la fuente real que
   usa una reserva nueva (no solo el catálogo estático del frontend); un
   servicio no se borra (puede tener historial), se desactiva.

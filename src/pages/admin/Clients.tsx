@@ -3,6 +3,7 @@ import {
   FaBirthdayCake,
   FaCheck,
   FaCoins,
+  FaDownload,
   FaExclamationTriangle,
   FaIdBadge,
   FaPen,
@@ -16,7 +17,43 @@ import { TIER_FALLBACK, TIER_TEXT_CLASS } from "../../data/tiers";
 import ClientProfileModal from "../../components/staff/ClientProfileModal";
 
 const RESULT_LIMIT = 200;
+// Tope solo para no pedir un número absurdo de filas; muy por encima de
+// cualquier cantidad real de clientes de una sola barbería.
+const EXPORT_LIMIT = 10000;
 const TODAY = new Date().toISOString().split("T")[0];
+
+/** Envuelve en comillas y escapa comillas internas si el valor trae
+ * coma, comillas o salto de línea — lo mínimo para que el CSV abra
+ * bien en Excel/Sheets y en herramientas de envío masivo. */
+function csvField(value: string): string {
+  if (/[",\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function downloadClientsCsv(rows: { full_name: string | null; email: string | null; phone: string | null; created_at: string }[]) {
+  const header = ["Nombre", "Correo", "Teléfono", "Cliente desde"];
+  const lines = rows.map((r) =>
+    [
+      csvField(r.full_name ?? ""),
+      csvField(r.email ?? ""),
+      csvField(r.phone ?? ""),
+      csvField(formatShortDate(r.created_at)),
+    ].join(",")
+  );
+  // BOM al inicio: sin esto, Excel en Windows muestra mal las tildes/Ñ.
+  const csv = "﻿" + [header.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `red-chairs-clientes-${TODAY}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 /** Profile + lo que ya calcula club_member_summary (puntos y nivel),
  * traído aparte en una segunda consulta liviana — mismo patrón que
@@ -158,6 +195,8 @@ export default function AdminClients() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewingClientId, setViewingClientId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) {
@@ -238,18 +277,71 @@ export default function AdminClients() {
     setClients((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
   };
 
+  /** Trae TODOS los clientes que coincidan con la búsqueda actual (sin
+   * el tope de 200 que usa la lista en pantalla) y dispara la descarga
+   * del CSV — para mandarlo a WhatsApp Business, Mailchimp, etc. */
+  const handleExport = async () => {
+    if (!supabase) return;
+    setExporting(true);
+    setExportError(null);
+
+    let query = supabase
+      .from("profiles")
+      .select("full_name, email, phone, created_at")
+      .order("full_name")
+      .limit(EXPORT_LIMIT);
+
+    const term = search.trim();
+    if (term) {
+      const escaped = term.replace(/[%,]/g, "");
+      query = query.or(
+        `full_name.ilike.%${escaped}%,email.ilike.%${escaped}%,phone.ilike.%${escaped}%`
+      );
+    }
+
+    const { data, error: exportFetchError } = await query;
+    setExporting(false);
+    if (exportFetchError) {
+      setExportError(exportFetchError.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      setExportError("No hay clientes que exportar con este filtro.");
+      return;
+    }
+    downloadClientsCsv(data);
+  };
+
   return (
     <div>
-      <div className="max-w-md">
-        <label className={labelClass}>Buscar cliente</label>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Nombre, correo o teléfono"
-          className={fieldClass}
-        />
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="max-w-md flex-1">
+          <label className={labelClass}>Buscar cliente</label>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Nombre, correo o teléfono"
+            className={fieldClass}
+          />
+        </div>
+        <div className="shrink-0">
+          <button
+            type="button"
+            disabled={exporting}
+            onClick={() => void handleExport()}
+            className="btn-outline !py-2 !px-5 text-xs disabled:opacity-50"
+          >
+            {exporting ? <FaSpinner className="mr-2 inline animate-spin" /> : <FaDownload className="mr-2 inline" size={11} />}
+            Exportar CSV
+          </button>
+        </div>
       </div>
+      {exportError && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-blood">
+          <FaExclamationTriangle size={10} /> {exportError}
+        </p>
+      )}
 
       <div className="mt-8 space-y-4">
         {loading ? (
