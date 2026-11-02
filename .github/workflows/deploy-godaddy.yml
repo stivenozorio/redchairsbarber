@@ -1,0 +1,58 @@
+name: Desplegar frontend a GoDaddy (FTP)
+
+# Compila el frontend (apuntando a la API en Vercel) y sube el
+# resultado por FTP al subdominio en GoDaddy. Solo toca el frontend
+# estático — el backend (/api) sigue desplegándose aparte, en Vercel,
+# como siempre.
+#
+# Ver README → "Frontend y backend en dominios distintos" para el
+# contexto completo de esta arquitectura.
+
+on:
+  push:
+    branches: [claude/red-chairs-barber-site-f4qmsu]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar
+        run: npm run build
+        env:
+          # Dónde vive la API (Vercel) — no es secreta, pero vive en un
+          # secret de GitHub para no tenerla repetida en el código.
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          # Públicas por diseño (ver README) — protegidas por RLS/por
+          # restricción de dominio, no por estar ocultas. Viven en
+          # secrets de todas formas, para no repetir estos valores acá
+          # y en Vercel por separado.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_GOOGLE_PLACE_ID: ${{ secrets.VITE_GOOGLE_PLACE_ID }}
+          VITE_GOOGLE_PLACES_API_KEY: ${{ secrets.VITE_GOOGLE_PLACES_API_KEY }}
+
+      - name: Subir dist/ por FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          # Carpeta del subdominio en el servidor de GoDaddy — ajustar
+          # al valor real (ver el secret FTP_SERVER_DIR más abajo).
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          local-dir: ./dist/
+          # No borra archivos en el servidor que no vengan de este
+          # build — evita sorpresas si algún día se sube algo a mano.
+          dangerous-clean-slate: false

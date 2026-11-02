@@ -121,6 +121,41 @@ Pasos para desplegar el frontend aparte (ej. en GoDaddy):
 5. **Google Cloud Console** (reseñas de Google, si están activas) →
    restringe la API key también al dominio nuevo, además del de Vercel.
 
+### Subir el frontend a GoDaddy automáticamente (opcional)
+
+El paso 2-3 de arriba (compilar y subir por FTP) se puede automatizar
+con `.github/workflows/deploy-godaddy.yml`: cada push a la rama
+`claude/red-chairs-barber-site-f4qmsu` compila el frontend y lo sube
+solo, sin tocar nada a mano. Mientras no estén configurados los
+secrets de abajo, el workflow simplemente falla sin afectar nada más
+(ni el código, ni el despliegue en Vercel).
+
+Para activarlo, en GitHub → el repositorio → **Settings → Secrets and
+variables → Actions → New repository secret**, agrega:
+
+- `FTP_SERVER` — el host FTP de GoDaddy (ej. `ftp.digicyus.com` o la
+  IP que te haya dado soporte de GoDaddy).
+- `FTP_USERNAME` / `FTP_PASSWORD` — las credenciales del FTP (cPanel →
+  Cuentas FTP, o las que ya uses en FileZilla).
+- `FTP_SERVER_DIR` — la carpeta exacta del subdominio en el servidor
+  (ej. `/public_html/redchairsbarber/` — la misma carpeta donde
+  subiste el `.zip` a mano la primera vez).
+- `VITE_API_BASE_URL` — `https://redchairsbarber.vercel.app` (o el
+  dominio que tenga el proyecto en Vercel).
+- `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` — los mismos valores
+  que están en Vercel (Supabase → Project Settings → Data API /
+  API Keys).
+- `VITE_GOOGLE_PLACE_ID` / `VITE_GOOGLE_PLACES_API_KEY` — opcionales,
+  solo si quieres que las reseñas de Google funcionen también en el
+  build que sube este workflow.
+
+Ninguno de estos valores es realmente secreto (son los mismos que ya
+viajan al navegador de cualquier visitante — ver la nota sobre
+"decisión de diseño, no un descuido" en
+[Reseñas de Google](#reseñas-de-google-en-el-inicio-home)), salvo las
+credenciales de FTP: esas sí son sensibles, por eso todo vive como
+secret de GitHub y no en el código.
+
 ### Aviso en el dominio viejo de Vercel
 
 Una vez el frontend ya está funcionando bien en el dominio nuevo,

@@ -1,0 +1,26 @@
+# Red Chairs Barber — sitio de una sola página (React Router).
+# Necesario solo en GoDaddy (Apache) — ver README → "Frontend y
+# backend en dominios distintos". Vercel no lo usa (tiene su propio
+# rewrite en vercel.json).
+#
+# Toda ruta que no sea un archivo real (JS, CSS, imágenes...) debe
+# servir index.html para que React Router la resuelva en el
+# navegador. Sin esto, entrar directo a una ruta como /reservar o
+# actualizar la página ahí da 404 en Apache.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Los archivos de /assets llevan hash en el nombre (cambian de nombre
+# cuando cambia el contenido), así que pueden cachearse por mucho
+# tiempo sin riesgo de servir una versión vieja.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  <FilesMatch "^assets/">
+    ExpiresDefault "access plus 1 year"
+  </FilesMatch>
+</IfModule>
