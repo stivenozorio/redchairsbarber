@@ -227,6 +227,9 @@ Torres y Jhon Rojas no comparten agenda.
 - `POST /api/staff/product-redemption` (`action: "fulfill" | "cancel"`) —
   confirmar entrega (cualquier staff) o cancelar y devolver puntos
   (solo admin) — mismo lugar del README de arriba.
+- `POST /api/staff/walkin` (`action: "find-or-create-client" | "book"`) —
+  reserva real para un cliente presencial sin cuenta propia — ver
+  [Clientes presenciales sin cuenta](#clientes-presenciales-sin-cuenta-fase-4-ajuste).
 
 **Límite de funciones serverless (plan Hobby de Vercel).** Cada
 archivo bajo `/api` (menos `_lib/`, que es código compartido, no una
@@ -237,11 +240,13 @@ Functions can be added to a Deployment on the Hobby plan". Ya pasó una
 vez (el canje de productos en línea agregó 3 funciones y llevó el
 total a 13); se resolvió fusionando endpoints relacionados en uno solo
 con un parámetro que distingue la acción (`/api/health?calendar=1`,
-`/api/staff/product-redemption` con `action`), no agregando lógica
-nueva. **Antes de agregar un archivo nuevo bajo `/api` o `/api/staff`,
-contar cuántos hay** (`find api -name "*.ts" -not -path "*/_lib/*" |
-wc -l`) — con 11 hoy, queda espacio para uno más antes de tener que
-fusionar de nuevo o pasar al plan Pro.
+`/api/staff/product-redemption` con `action`). Mismo criterio se usó
+para `/api/staff/walkin` (dos acciones en un solo archivo) en vez de
+dos endpoints nuevos. **Antes de agregar un archivo nuevo bajo `/api`
+o `/api/staff`, contar cuántos hay** (`find api -name "*.ts" -not
+-path "*/_lib/*" | wc -l`) — con 12 hoy, **ya no queda espacio**:
+cualquier función nueva tiene que fusionarse con una existente (o
+pasar al plan Pro de Vercel).
 
 `/api/availability` y `/api/book` ya no usan un horario ni un catálogo
 de servicios fijos: consultan `api/_lib/scheduleRepo.ts` y
@@ -1045,6 +1050,59 @@ Calendar + fila en `bookings`), sin servicios ni cuenta asociada, con
   día", "Pendientes", etc. en `BarberPanel.tsx`/`Dashboard.tsx`): no son
   citas reales.
 - `supabase/verify.sql` (sección 17) lista los bloqueos activos.
+
+### Clientes presenciales sin cuenta (Fase 4, ajuste)
+
+Diferencia con lo de arriba: bloquear un horario (`source = 'blocked'`)
+no tiene cliente real detrás — sirve para que ese horario deje de
+ofrecerse en línea, nada más. Esto es para cuando alguien se acerca en
+persona a Camilo o Alejandro, quiere una cita YA, y no quiere (o no
+puede) registrarse solo en la página — sobre todo clientes mayores.
+`WalkinBookingForm.tsx` (arriba de la agenda en `/barbero`, antes de
+"Bloquear horario") deja que el barbero le haga la reserva él mismo, y
+que sí cuente como una reserva real: con sus servicios, su nombre en
+Calendar, y puntos/visitas de RED CLUB.
+
+**El cliente nunca necesita iniciar sesión** (decisión explícita): el
+barbero lo busca por teléfono la próxima vez que vuelva, le dice su
+saldo de puntos, y se lo canjea en persona con el flujo que ya existe
+(`/api/staff/redeem-points`). No hay correo real ni contraseña de por
+medio.
+
+**Por qué sí necesita un `auth.users` real:** `profiles.id` tiene una
+llave foránea contra `auth.users.id` (0001_schema.sql) — no se puede
+insertar una fila en `profiles` sin una cuenta de verdad detrás, así
+que "un perfil con solo nombre y teléfono" no es posible con el
+esquema actual. La solución usa la API de administración de Supabase
+(`supabase.auth.admin.createUser`, con la service-role key) para crear
+la cuenta por detrás, con un correo inventado en el dominio reservado
+`.invalid` (RFC 2606 — garantizado que nunca es un dominio real, así
+que no hay riesgo de mandarle algo a alguien de verdad) — Supabase
+exige correo o teléfono para crear una cuenta, pero nadie va a usar
+ese correo para nada. El trigger `handle_new_user` (0002/0005) crea el
+`profiles` automáticamente, igual que con cualquier registro normal.
+
+`POST /api/staff/walkin` — dos acciones en un solo endpoint (ver la
+nota del límite de funciones serverless más arriba):
+
+- `action: "find-or-create-client"` (`{phone, fullName?}`) — busca un
+  perfil por teléfono exacto. Si existe (sea un cliente que se
+  registró solo o uno creado así antes), lo devuelve tal cual — no
+  crea un perfil duplicado. Si no existe y no se mandó `fullName`,
+  responde `404` con `needsName: true` (el formulario le pide el
+  nombre al barbero antes de reintentar). Con `fullName`, crea la
+  cuenta.
+- `action: "book"` (`{clientUserId, barberId, date, time, services,
+  notes?}`) — mismo flujo de validación que `/api/book` (horario de
+  atención, disponibilidad real contra Calendar), pero el cliente ya
+  viene resuelto en vez de salir del token de sesión. Un barbero solo
+  puede reservar en su propia agenda (mismo criterio que
+  `block-slot.ts`); un admin, en la de cualquiera. Guarda la reserva
+  con `source = 'walkin'` — cuenta como cita real a todo efecto (puntos
+  al completarse, visitas) — `BookingStatusRow.tsx` le agrega un badge
+  "Presencial" para distinguirla de una reserva en línea a simple
+  vista. El cliente no puede iniciar sesión con esta cuenta (sin
+  contraseña, correo inventado): es a propósito, ver arriba.
 
 ### Bloquear un día completo (Fase 4, ajuste)
 

@@ -164,6 +164,11 @@ export default function BookingStatusRow({
           <span>{barberName(booking.barber_id)}</span>
           <span>{booking.total_duration_minutes} min</span>
           <span className="text-gold/70">{formatCop(booking.total_price_cop)}</span>
+          {booking.source === "walkin" && (
+            <span className="rounded-full border border-bone/20 px-2.5 py-0.5 text-bone/60">
+              Presencial
+            </span>
+          )}
           {booking.redeemed_with_points && (
             <span className="flex items-center gap-1.5 rounded-full border border-gold/30 px-2.5 py-0.5 text-gold">
               <FaExchangeAlt size={10} /> Canjeado ({booking.points_redeemed} pts)

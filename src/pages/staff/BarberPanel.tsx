@@ -11,6 +11,7 @@ import BookingStatusRow from "../../components/staff/BookingStatusRow";
 import ClientProfileModal from "../../components/staff/ClientProfileModal";
 import BlockSlotForm from "../../components/staff/BlockSlotForm";
 import DayOffForm from "../../components/staff/DayOffForm";
+import WalkinBookingForm from "../../components/staff/WalkinBookingForm";
 import type { BookingStatus } from "../../types/club";
 
 const STATUS_FILTERS: ("all" | BookingStatus)[] = ["all", ...BOOKING_STATUS_ORDER];
@@ -202,7 +203,15 @@ export default function BarberPanel() {
               </div>
             </div>
 
-            <div className="mt-8 grid gap-6 lg:grid-cols-2">
+            <div className="mt-8">
+              <WalkinBookingForm
+                barberId={effectiveBarberId === "any" ? null : effectiveBarberId}
+                date={date}
+                onBooked={() => void reload()}
+              />
+            </div>
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
               <BlockSlotForm
                 barberId={effectiveBarberId === "any" ? null : effectiveBarberId}
                 date={date}
