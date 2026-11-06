@@ -1789,6 +1789,82 @@ guardar**.
 - `supabase/verify.sql` — las mismas comprobaciones desde el SQL Editor,
   con resultados en tablas legibles.
 
+### Revisión de experiencia pública (Fase 4, ajuste)
+
+Ronda de ajustes tras una revisión completa del sitio como cliente
+nuevo, sin cuenta. La mayoría son contenido/navegación; dos tienen
+causa técnica real que vale la pena dejar escrita:
+
+- **`/club/login` en blanco → arreglado.** Esa ruta nunca existió (el
+  login real es `/club/entrar`); sin una ruta que la reciba, React
+  Router no renderiza nada dentro de `<Routes>` pero el navbar/pie sí
+  siguen ahí (no dependen de la ruta) — por eso se veía "vacía" en vez
+  de un 404 franco. `App.tsx` ahora tiene `<Route path="/club/login">`
+  redirigiendo a `/club/entrar`, más un catch-all (`path="*"`) que
+  manda cualquier ruta no reconocida al inicio, para que ningún
+  enlace roto vuelva a dejar una pantalla en blanco.
+
+- **Precios distintos en distintas páginas → causa real encontrada.**
+  No era caché: `Booking.tsx` (reservar) y `PointsTable.tsx` siempre
+  leyeron los precios **en vivo** desde Supabase
+  (`useServiceOverrides`/`applyLiveOverrides`), pero `Home.tsx`,
+  `Services.tsx` y `VipExperience.tsx` mostraban los precios **fijos
+  del código**, sin consultar Supabase — si alguien editaba un precio
+  desde `/admin/servicios`, cambiaba en la reserva pero no en esas
+  tres páginas. Las tres ahora también pasan por
+  `applyLiveOverrides`, igual que Reservar — una sola fuente de
+  verdad en todo el sitio. Si los precios en Supabase quedaron
+  distintos a la lista oficial (puede pasar si alguien los editó a
+  mano), **volver a correr `supabase/migrations/0004_seed.sql`** en el
+  SQL Editor los resetea exactos — es `insert ... on conflict do
+  update`, seguro de repetir, no toca reservas ni clientes.
+
+Resto de los ajustes de esta ronda:
+
+- **`HowToBookSteps.tsx`** — "¿Cómo reservas tu cita?" en 3 pasos, en
+  Inicio, Reservar (antes del formulario) y Registro (versión compacta
+  dentro de la tarjeta).
+- **`WhatsAppBookingButton.tsx`** — "Reservar por WhatsApp, sin
+  cuenta" en Inicio, Servicios y Registro, mismo texto y destino
+  (`WHATSAPP_LINK` de `data/site.ts`) en los tres — para quien no
+  quiere crear cuenta.
+- **`/club/registro` ya no es un callejón sin salida.** Se sacó de
+  `BARE_ROUTES` en `App.tsx` (antes mostraba la pantalla sin
+  navbar/pie, igual que login/recuperar/restablecer — ahora es la
+  única excepción, porque es la primera pantalla que ve alguien nuevo
+  que viene de Reservar). Login, recuperar contraseña y restablecer
+  siguen a pantalla completa como antes.
+- **Combos "Plus" → "Premium".** "Corte Plus + Cejas"/"Corte Plus +
+  Barba" no tenían ningún servicio "Corte Plus" al que referirse — se
+  renombraron a "Combo Corte Premium + Cejas"/"Combo Corte Premium +
+  Barba" (el prefijo "Combo" evita que "Corte Premium + Barba" quede
+  duplicado con el servicio que ya existía solo con ese nombre en la
+  categoría Premium — mismo precio y duración, pero son dos filas de
+  catálogo distintas). Solo cambió el nombre mostrado, nunca el `id`
+  (la llave estable del catálogo).
+- **`OurBarbers.tsx`** — en Inicio, antes de llegar a crear cuenta:
+  nombre de cada barbero, sin necesidad de sesión. **Sin fotos
+  reales todavía** (círculo con la inicial como marcador honesto, no
+  una foto inventada) — pendiente de que la barbería mande fotos.
+- **Contradicción en Fidelización, corregida.** Decía "no necesitas
+  inscribirte en nada" junto a que reservar en línea exige cuenta.
+  Ahora aclara que la cuenta de RED CLUB (la misma de reservar) es el
+  perfil de fidelización, y que una visita por WhatsApp también puede
+  sumar si el cliente da su nombre y teléfono en el local — conecta
+  con [Clientes presenciales sin cuenta](#clientes-presenciales-sin-cuenta-fase-4-ajuste).
+- **Contacto visible sin bajar al pie.** `Navbar.tsx` ahora tiene un
+  ícono de WhatsApp (con el teléfono, dirección y horario completo en
+  el `title`); `MobileMenu.tsx` los muestra completos al final del
+  menú. `HOURS` en `data/site.ts` ahora incluye la línea de domingo
+  cerrado que faltaba (el footer la toma automático, sin tocar
+  `Footer.tsx`).
+
+**Pendiente, necesita algo de la barbería, no de código:** reemplazar
+los 8 cuadros de la galería (`GalleryTile.tsx` dibuja un marcador con
+las letras "RC", no hay foto real detrás) por fotos reales del local,
+los cortes y el equipo — y, si se quiere ampliar `OurBarbers.tsx` con
+fotos en vez del círculo con la inicial, lo mismo.
+
 ## Próximas fases
 
 - **Fase 5** — Recompensas, canjes y referidos

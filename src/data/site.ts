@@ -16,7 +16,10 @@ export const WHATSAPP_LINK = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComp
   "Hola Red Chairs Barber, quiero reservar una cita."
 )}`;
 
-export const HOURS = [{ day: "Lunes a sábado", time: "10:00 a. m. – 9:00 p. m." }];
+export const HOURS = [
+  { day: "Lunes a sábado", time: "10:00 a. m. – 9:00 p. m." },
+  { day: "Domingo", time: "Cerrado" },
+];
 
 export const NAV_LINKS = [
   { label: "Inicio", to: "/" },

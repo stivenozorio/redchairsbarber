@@ -13,6 +13,7 @@ import {
 } from "react-icons/fa";
 import PageHero from "../components/PageHero";
 import Reveal from "../components/Reveal";
+import HowToBookSteps from "../components/HowToBookSteps";
 import {
   SERVICE_CATEGORIES,
   VIP_EXPERIENCES,
@@ -500,6 +501,8 @@ export default function Booking() {
         title="Reservar Cita"
         subtitle="Selecciona tus servicios, tu barbero de confianza, y el día y hora que mejor te convenga."
       />
+
+      <HowToBookSteps />
 
       <section className="bg-charcoal py-24">
         <div className="container-lux">

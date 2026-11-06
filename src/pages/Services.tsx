@@ -3,9 +3,19 @@ import PageHero from "../components/PageHero";
 import SectionHeading from "../components/SectionHeading";
 import ServiceCard from "../components/ServiceCard";
 import Reveal from "../components/Reveal";
-import { SERVICE_CATEGORIES } from "../data/services";
+import WhatsAppBookingButton from "../components/WhatsAppBookingButton";
+import { SERVICE_CATEGORIES, applyLiveOverrides } from "../data/services";
+import { useServiceOverrides } from "../hooks/useServiceOverrides";
 
 export default function Services() {
+  // Mismos precios que Inicio/Reservar en vez de los fijos del código
+  // — ver hooks/useServiceOverrides.ts.
+  const serviceOverrides = useServiceOverrides();
+  const liveCategories = SERVICE_CATEGORIES.map((category) => ({
+    ...category,
+    services: applyLiveOverrides(category.services, serviceOverrides),
+  }));
+
   return (
     <div>
       <PageHero
@@ -13,6 +23,38 @@ export default function Services() {
         title="Servicios"
         subtitle="Cada experiencia está diseñada con precisión, dedicación y los mejores productos del mercado."
       />
+
+      <section className="border-b border-gold/10 bg-charcoal py-16">
+        <div className="container-lux grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="eyebrow justify-start before:hidden">Clásicos</p>
+            <p className="mt-3 text-sm leading-relaxed text-bone/70">
+              El servicio esencial, rápido y bien hecho — corte, barba o afeitado sin vueltas.
+            </p>
+          </div>
+          <div>
+            <p className="eyebrow justify-start before:hidden">Premium</p>
+            <p className="mt-3 text-sm leading-relaxed text-bone/70">
+              La misma base, pero como experiencia completa: diagnóstico visajista, masaje
+              relajante y más tiempo dedicado a cada detalle.
+            </p>
+          </div>
+          <div>
+            <p className="eyebrow justify-start before:hidden">Combos</p>
+            <p className="mt-3 text-sm leading-relaxed text-bone/70">
+              Varios servicios en una sola cita, a un precio conjunto más bajo que pedirlos por
+              separado.
+            </p>
+          </div>
+          <div>
+            <p className="eyebrow justify-start before:hidden">Extras</p>
+            <p className="mt-3 text-sm leading-relaxed text-bone/70">
+              Detalles cortos que puedes sumar a cualquier corte — cejas, lavado capilar, y los
+              upgrades de la sección Relax.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <nav className="sticky top-20 z-20 border-y border-gold/10 bg-obsidian/90 backdrop-blur-md">
         <div className="container-lux flex flex-wrap items-center justify-center gap-x-8 gap-y-3 py-4">
@@ -28,7 +70,7 @@ export default function Services() {
         </div>
       </nav>
 
-      {SERVICE_CATEGORIES.map((category, idx) => (
+      {liveCategories.map((category, idx) => (
         <section
           id={category.id}
           key={category.id}
@@ -79,6 +121,7 @@ export default function Services() {
               <Link to="/experiencia-vip" className="btn-outline">
                 Ver Experiencia VIP
               </Link>
+              <WhatsAppBookingButton />
             </div>
           </Reveal>
         </div>

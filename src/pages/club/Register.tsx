@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { FaCheckCircle, FaExclamationTriangle, FaGoogle, FaSpinner } from "react-icons/fa";
 import AuthShell from "../../components/club/AuthShell";
+import WhatsAppBookingButton from "../../components/WhatsAppBookingButton";
 import { useAuth } from "../../auth/useAuth";
 import { fieldClass } from "../../lib/ui";
 
@@ -101,6 +102,22 @@ export default function Register() {
         </>
       }
     >
+      <div className="mb-8 rounded-sm border border-gold/15 bg-charcoal/50 p-5">
+        <p className="eyebrow justify-start before:hidden">¿Cómo reservas tu cita?</p>
+        <ol className="mt-4 space-y-2 text-sm text-bone/70">
+          <li>
+            <span className="text-gold">1.</span> Crea tu cuenta, con Google o correo, es
+            obligatoria para reservar en la web.
+          </li>
+          <li>
+            <span className="text-gold">2.</span> Elige servicio, fecha, hora y barbero.
+          </li>
+          <li>
+            <span className="text-gold">3.</span> Confirma tu cita.
+          </li>
+        </ol>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-5">
         <input
           required
@@ -184,6 +201,14 @@ export default function Register() {
         {googleLoading ? <FaSpinner className="animate-spin" /> : <FaGoogle />}
         Continuar con Google
       </button>
+
+      <div className="my-7 flex items-center gap-4">
+        <span className="h-px flex-1 bg-gold/15" />
+        <span className="text-[10px] uppercase tracking-widest2 text-bone/40">o</span>
+        <span className="h-px flex-1 bg-gold/15" />
+      </div>
+
+      <WhatsAppBookingButton className="w-full" />
     </AuthShell>
   );
 }

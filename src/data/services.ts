@@ -133,9 +133,24 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     subtitle: "Todo lo que necesitas",
     services: [
       { id: "combo-corte-cejas", name: "Corte + Cejas", price: "$25.000", durationMinutes: 35 },
-      { id: "combo-corte-plus-cejas", name: "Corte Plus + Cejas", price: "$35.000", durationMinutes: 45 },
+      {
+        id: "combo-corte-plus-cejas",
+        name: "Combo Corte Premium + Cejas",
+        price: "$35.000",
+        durationMinutes: 45,
+      },
       { id: "combo-corte-barba", name: "Corte + Barba", price: "$30.000", durationMinutes: 50 },
-      { id: "combo-corte-plus-barba", name: "Corte Plus + Barba", price: "$40.000", durationMinutes: 60 },
+      {
+        id: "combo-corte-plus-barba",
+        // "Corte Premium + Barba" a secas ya es el nombre de
+        // corte-premium-barba (categoría Premium) — este combo cuesta
+        // y dura lo mismo, pero es una fila de catálogo distinta
+        // (categoría Combos), así que necesita su propio nombre para
+        // no aparecer duplicado en el selector de /reservar.
+        name: "Combo Corte Premium + Barba",
+        price: "$40.000",
+        durationMinutes: 60,
+      },
       { id: "combo-corte-barba-cejas", name: "Corte + Barba + Cejas", price: "$35.000", durationMinutes: 65 },
     ],
   },
@@ -177,21 +192,21 @@ export const VIP_EXPERIENCES: Service[] = [
     name: "Experiencia VIP",
     price: "$65.000",
     durationMinutes: 90,
-    description: "Corte Plus + Spa Facial + Lavado Capilar",
+    description: "Corte Premium + Spa Facial + Lavado Capilar",
   },
   {
     id: "vip-barba",
     name: "Experiencia VIP + Barba",
     price: "$75.000",
     durationMinutes: 105,
-    description: "Corte Plus + Spa Facial + Lavado Capilar + Barba Premium",
+    description: "Corte Premium + Spa Facial + Lavado Capilar + Barba Premium",
   },
   {
     id: "vip-barba-cejas",
     name: "Experiencia VIP + Barba + Cejas",
     price: "$81.000",
     durationMinutes: 120,
-    description: "Corte Plus + Spa Facial + Lavado Capilar + Barba Premium + Cejas",
+    description: "Corte Premium + Spa Facial + Lavado Capilar + Barba Premium + Cejas",
   },
 ];
 

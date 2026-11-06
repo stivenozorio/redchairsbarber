@@ -59,10 +59,15 @@ export default function Loyalty() {
               Simple, automático y <span className="text-gold">sin costo</span>
             </h2>
             <p className="body-muted mt-6 max-w-lg text-lg">
-              No necesitas inscribirte en nada. Cada vez que visitas Red
-              Chairs Barber sumamos una visita a tu perfil. Al alcanzar el
-              número de visitas de cada nivel, tus nuevos beneficios se
-              desbloquean automáticamente para tu próxima cita.
+              No hay inscripción aparte ni cuota: tu cuenta de RED CLUB
+              (la misma que usas para reservar en la página) es tu perfil
+              de fidelización. Cada vez que visitas Red Chairs Barber
+              sumamos una visita ahí. Al alcanzar el número de visitas de
+              cada nivel, tus nuevos beneficios se desbloquean
+              automáticamente para tu próxima cita. ¿Prefieres reservar
+              por WhatsApp sin crear cuenta? También puedes — dile tu
+              nombre y teléfono al barbero y esa visita también puede
+              quedar sumada a tu cuenta.
             </p>
             <Link
               to="/puntos"

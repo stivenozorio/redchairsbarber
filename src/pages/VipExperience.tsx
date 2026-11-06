@@ -11,7 +11,8 @@ import {
 import PageHero from "../components/PageHero";
 import SectionHeading from "../components/SectionHeading";
 import Reveal from "../components/Reveal";
-import { VIP_EXPERIENCES } from "../data/services";
+import { VIP_EXPERIENCES, applyLiveOverrides } from "../data/services";
+import { useServiceOverrides } from "../hooks/useServiceOverrides";
 
 const INCLUDES = [
   { icon: FaCut, title: "Corte Premium", text: "Técnicas modernas y personalizadas con el mejor estilo." },
@@ -25,6 +26,11 @@ const INCLUDES = [
 ];
 
 export default function VipExperience() {
+  // Mismos precios que Inicio/Servicios/Reservar en vez de los fijos
+  // del código — ver hooks/useServiceOverrides.ts.
+  const serviceOverrides = useServiceOverrides();
+  const liveVipExperiences = applyLiveOverrides(VIP_EXPERIENCES, serviceOverrides);
+
   return (
     <div>
       <PageHero
@@ -58,7 +64,7 @@ export default function VipExperience() {
         <div className="container-lux">
           <SectionHeading eyebrow="Elige tu nivel" title="Menú Experiencia VIP" />
           <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-3">
-            {VIP_EXPERIENCES.map((v, i) => (
+            {liveVipExperiences.map((v, i) => (
               <Reveal key={v.name} delay={i * 0.12} className={i === 1 ? "md:-translate-y-6" : ""}>
                 <div
                   className={`card-lux flex h-full flex-col items-center text-center ${

@@ -3,9 +3,9 @@ import { createPortal } from "react-dom";
 import { Link, NavLink } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { HiX } from "react-icons/hi";
-import { FaCut, FaUserCircle, FaUserShield } from "react-icons/fa";
+import { FaCut, FaUserCircle, FaUserShield, FaWhatsapp } from "react-icons/fa";
 import { LogoWordmark } from "./Logo";
-import { NAV_LINKS } from "../data/site";
+import { ADDRESS, HOURS, NAV_LINKS, PHONE_DISPLAY, WHATSAPP_LINK } from "../data/site";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../auth/useAuth";
 
@@ -156,6 +156,23 @@ export default function MobileMenu({ open, onClose }: MobileMenuProps) {
               </Link>
             </motion.div>
           </nav>
+
+          <a
+            href={WHATSAPP_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onClose}
+            className="flex shrink-0 items-center justify-center gap-2 border-t border-gold/10 py-5 font-body text-sm text-ivory/80"
+          >
+            <FaWhatsapp className="text-gold" />
+            {PHONE_DISPLAY}
+          </a>
+          <div className="shrink-0 border-t border-gold/10 px-6 py-5 text-center text-xs text-bone/50">
+            <p>{ADDRESS}</p>
+            <p className="mt-1">
+              {HOURS.map((h) => `${h.day}: ${h.time}`).join(" · ")}
+            </p>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>,

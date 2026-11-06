@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Suspense, lazy, useEffect, useState } from "react";
 import { FaSpinner } from "react-icons/fa";
 import Navbar from "./components/Navbar";
@@ -60,10 +60,14 @@ function ScrollToTop() {
 }
 
 /** Las pantallas de autenticación se muestran a pantalla completa, sin
- * el navbar ni el footer del sitio público. */
+ * el navbar ni el footer del sitio público — "/club/registro" es la
+ * excepción a propósito: es la primera pantalla que ve alguien nuevo
+ * que viene de /reservar, y antes solo se podía salir tocando el logo
+ * (un callejón sin salida). Con el navbar/pie sí puede navegar a
+ * cualquier otra parte del sitio, o usar el botón de WhatsApp sin
+ * cuenta si prefiere reservar así. */
 const BARE_ROUTES = [
   "/club/entrar",
-  "/club/registro",
   "/club/recuperar",
   "/club/restablecer",
   "/club/callback",
@@ -107,6 +111,11 @@ function App() {
 
           {/* Autenticación RED CLUB */}
           <Route path="/club/entrar" element={<Login />} />
+          {/* "/club/login" es un nombre que alguien podría escribir o
+              enlazar por costumbre (es el más común en inglés) — sin
+              esto no coincidía con ninguna ruta y quedaba en blanco
+              (solo encabezado/pie, sin contenido). */}
+          <Route path="/club/login" element={<Navigate to="/club/entrar" replace />} />
           <Route path="/club/registro" element={<Register />} />
           <Route path="/club/recuperar" element={<ForgotPassword />} />
           <Route path="/club/restablecer" element={<ResetPassword />} />
@@ -145,6 +154,10 @@ function App() {
           <Route element={<ProtectedRoute requireStaff />}>
             <Route path="/barbero" element={<BarberPanel />} />
           </Route>
+
+          {/* Cualquier otra ruta (typo, enlace viejo, lo que sea) manda al
+              inicio en vez de dejar la pantalla en blanco. */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
       </main>

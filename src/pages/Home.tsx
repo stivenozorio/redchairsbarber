@@ -17,8 +17,12 @@ import ServiceCard from "../components/ServiceCard";
 import LoyaltyCard from "../components/LoyaltyCard";
 import GalleryTile from "../components/GalleryTile";
 import GoogleReviewsCarousel from "../components/GoogleReviewsCarousel";
+import WhatsAppBookingButton from "../components/WhatsAppBookingButton";
+import HowToBookSteps from "../components/HowToBookSteps";
+import OurBarbers from "../components/OurBarbers";
 import { LogoBadge } from "../components/Logo";
-import { SERVICE_CATEGORIES, VIP_EXPERIENCES } from "../data/services";
+import { SERVICE_CATEGORIES, VIP_EXPERIENCES, applyLiveOverrides } from "../data/services";
+import { useServiceOverrides } from "../hooks/useServiceOverrides";
 import { LOYALTY_TIERS } from "../data/loyalty";
 import { GALLERY_ITEMS } from "../data/gallery";
 import { TAGLINE_SECONDARY } from "../data/site";
@@ -34,7 +38,16 @@ const WHY_US = [
 ];
 
 export default function Home() {
-  const premiumPreview = SERVICE_CATEGORIES.find((c) => c.id === "premium")!.services;
+  // Mismos precios que Reservar/Servicios en vez de los fijos del
+  // código — si se edita un precio desde /admin/servicios, también
+  // cambia aquí, no solo en el flujo de reserva. Ver
+  // hooks/useServiceOverrides.ts.
+  const serviceOverrides = useServiceOverrides();
+  const premiumPreview = applyLiveOverrides(
+    SERVICE_CATEGORIES.find((c) => c.id === "premium")!.services,
+    serviceOverrides
+  );
+  const liveVipExperiences = applyLiveOverrides(VIP_EXPERIENCES, serviceOverrides);
   const { isAuthenticated } = useAuth();
 
   // Video de fondo del hero: NO se reproduce solo — el scroll controla
@@ -168,6 +181,7 @@ export default function Home() {
               <Link to="/servicios" className="btn-outline">
                 Ver servicios
               </Link>
+              <WhatsAppBookingButton />
             </motion.div>
 
             {isSupabaseConfigured && (
@@ -229,6 +243,8 @@ export default function Home() {
 
       <GoogleReviewsCarousel />
 
+      <HowToBookSteps />
+
       {/* WHY CHOOSE US */}
       <section className="border-t border-gold/10 bg-obsidian py-28">
         <div className="container-lux">
@@ -272,6 +288,8 @@ export default function Home() {
         </div>
       </section>
 
+      <OurBarbers />
+
       {/* EXPERIENCIA VIP */}
       <section className="relative overflow-hidden border-t border-gold/10 bg-obsidian py-28">
         <div className="absolute inset-0 bg-radial-fade opacity-70" />
@@ -291,7 +309,7 @@ export default function Home() {
             </Link>
           </Reveal>
           <div className="grid grid-cols-3 gap-4">
-            {VIP_EXPERIENCES.map((v, i) => (
+            {liveVipExperiences.map((v, i) => (
               <Reveal key={v.name} delay={i * 0.12} className={i === 1 ? "sm:-translate-y-6" : ""}>
                 <div className="card-lux flex h-full flex-col items-center justify-center text-center">
                   <p className="font-display text-2xl font-semibold text-gold">{v.price}</p>

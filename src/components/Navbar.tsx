@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { HiMenuAlt4 } from "react-icons/hi";
-import { FaCut, FaUserCircle, FaUserShield } from "react-icons/fa";
+import { FaCut, FaUserCircle, FaUserShield, FaWhatsapp } from "react-icons/fa";
 import { LogoWordmark } from "./Logo";
 import MobileMenu from "./MobileMenu";
-import { NAV_LINKS } from "../data/site";
+import { ADDRESS, HOURS, NAV_LINKS, PHONE_DISPLAY, WHATSAPP_LINK } from "../data/site";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../auth/useAuth";
 
@@ -58,6 +58,16 @@ export default function Navbar({ onMenuOpenChange }: NavbarProps) {
         </nav>
 
         <div className="hidden items-center gap-5 lg:flex">
+          <a
+            href={WHATSAPP_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`WhatsApp ${PHONE_DISPLAY}`}
+            title={`${PHONE_DISPLAY} · ${ADDRESS} · ${HOURS.map((h) => `${h.day}: ${h.time}`).join(" · ")}`}
+            className="flex items-center text-ivory/80 transition-colors duration-300 hover:text-gold"
+          >
+            <FaWhatsapp size={18} />
+          </a>
           {isSupabaseConfigured && isAuthenticated && isAdmin && (
             <Link
               to="/admin"
