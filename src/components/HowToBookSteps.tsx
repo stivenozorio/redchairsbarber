@@ -5,7 +5,7 @@ import SectionHeading from "./SectionHeading";
 const STEPS = [
   {
     icon: FaGoogle,
-    text: "Crea tu cuenta, con Google o correo, es obligatoria para reservar en la web.",
+    text: "Crea tu cuenta, con Google o correo — es necesaria para reservar en la web, porque cada cita que agendes así te suma puntos de RED CLUB.",
   },
   {
     icon: FaCalendarCheck,
@@ -18,9 +18,9 @@ const STEPS = [
 ];
 
 /** Mismo texto y orden en Inicio, Reservar y Registro — para que
- * nadie llegue a crear una cuenta sin saber que es justamente lo que
- * hace falta para reservar en la web (ver también
- * WhatsAppBookingButton para quien prefiere no crear cuenta). */
+ * nadie llegue a crear una cuenta sin saber POR QUÉ hace falta
+ * (acumular puntos), no solo que hace falta. Ver también
+ * WhatsAppBookingButton para quien prefiere no crear cuenta. */
 export default function HowToBookSteps() {
   return (
     <section className="border-y border-gold/10 bg-charcoal py-20">
@@ -39,6 +39,11 @@ export default function HowToBookSteps() {
             </Reveal>
           ))}
         </div>
+        <Reveal delay={0.3}>
+          <p className="mt-12 text-center text-sm text-bone/50">
+            ¿Prefieres no crear cuenta? Contáctanos directo por WhatsApp.
+          </p>
+        </Reveal>
       </div>
     </section>
   );

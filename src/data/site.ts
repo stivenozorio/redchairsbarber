@@ -13,7 +13,7 @@ export const CITY = "Bogotá, Colombia";
 export const FOUNDED = "2021";
 
 export const WHATSAPP_LINK = `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(
-  "Hola Red Chairs Barber, quiero reservar una cita."
+  "Hola, quiero reservar una cita."
 )}`;
 
 export const HOURS = [

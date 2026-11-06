@@ -106,8 +106,8 @@ export default function Register() {
         <p className="eyebrow justify-start before:hidden">¿Cómo reservas tu cita?</p>
         <ol className="mt-4 space-y-2 text-sm text-bone/70">
           <li>
-            <span className="text-gold">1.</span> Crea tu cuenta, con Google o correo, es
-            obligatoria para reservar en la web.
+            <span className="text-gold">1.</span> Crea tu cuenta, con Google o correo — es
+            necesaria para reservar en la web, porque cada cita te suma puntos de RED CLUB.
           </li>
           <li>
             <span className="text-gold">2.</span> Elige servicio, fecha, hora y barbero.
