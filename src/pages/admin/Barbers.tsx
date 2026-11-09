@@ -201,7 +201,6 @@ function BarberRowItem({
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <p className="text-xs text-bone/40">id: {barber.id}</p>
           {activeBookings > 0 && (
             <span className="flex items-center gap-1.5 rounded-full border border-gold/30 px-2.5 py-0.5 text-xs text-gold">
               <FaCalendarCheck size={10} /> {activeBookings} reserva{activeBookings === 1 ? "" : "s"} activa
