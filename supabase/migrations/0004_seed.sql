@@ -33,11 +33,12 @@ on conflict (id) do update set
 -- ------------------------------------------------------------
 
 -- El id 'alejandro' es el puesto/calendario original de Alejandro
--- Reyes; cuando dejó la barbería, Jhon Rojas lo reemplazó reutilizando
--- el mismo id y calendario (ver BARBERS en src/data/booking.ts).
+-- Reyes; ha tenido más de un reemplazo desde entonces (ver BARBERS en
+-- src/data/booking.ts para el historial), siempre reutilizando el
+-- mismo id y calendario.
 insert into public.barbers (id, name, active, sort_order) values
-  ('camilo',    'Camilo Torres', true, 1),
-  ('alejandro', 'Jhon Rojas',    true, 2)
+  ('camilo',    'Camilo Torres',   true, 1),
+  ('alejandro', 'Emanuel Noriega', true, 2)
 on conflict (id) do update set
   name       = excluded.name,
   active     = excluded.active,
