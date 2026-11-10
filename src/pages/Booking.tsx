@@ -14,6 +14,7 @@ import {
 import PageHero from "../components/PageHero";
 import Reveal from "../components/Reveal";
 import HowToBookSteps from "../components/HowToBookSteps";
+import BarberPicker from "../components/BarberPicker";
 import {
   SERVICE_CATEGORIES,
   VIP_EXPERIENCES,
@@ -734,17 +735,7 @@ export default function Booking() {
                   <label className="mb-2 flex items-center gap-2 text-xs uppercase tracking-widest2 text-gold/80">
                     <FaUser /> Barbero
                   </label>
-                  <select
-                    value={barberId}
-                    onChange={(e) => setBarberId(e.target.value)}
-                    className={fieldClass}
-                  >
-                    {visibleBarbers.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
+                  <BarberPicker barbers={visibleBarbers} value={barberId} onChange={setBarberId} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

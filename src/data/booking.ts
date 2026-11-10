@@ -10,7 +10,13 @@
 // variable de entorno (GOOGLE_CALENDAR_ID_ALEJANDRO) — solo cambia el
 // nombre que se muestra. Ver "Panel administrativo" en el README para
 // el historial completo de este cambio.
-export const BARBERS = [
+export interface Barber {
+  id: string;
+  name: string;
+  photo?: string;
+}
+
+export const BARBERS: Barber[] = [
   { id: "any", name: "Sin preferencia" },
   { id: "alejandro", name: "Franklin", photo: "/barbers/alejandro.jpg" },
   { id: "camilo", name: "Camilo Torres", photo: "/barbers/camilo.jpg" },
