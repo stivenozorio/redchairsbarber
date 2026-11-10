@@ -37,8 +37,8 @@ on conflict (id) do update set
 -- src/data/booking.ts para el historial), siempre reutilizando el
 -- mismo id y calendario.
 insert into public.barbers (id, name, active, sort_order) values
-  ('camilo',    'Camilo Torres',   true, 1),
-  ('alejandro', 'Emanuel Noriega', true, 2)
+  ('camilo',    'Camilo Torres', true, 1),
+  ('alejandro', 'Franklin',      true, 2)
 on conflict (id) do update set
   name       = excluded.name,
   active     = excluded.active,

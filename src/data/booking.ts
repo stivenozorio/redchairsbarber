@@ -5,15 +5,15 @@
 //
 // El id "alejandro" es el puesto/calendario original de Alejandro
 // Reyes; ha tenido más de un reemplazo desde entonces (Jhon Rojas, y
-// ahora Emanuel Noriega) reutilizando siempre el mismo id, el mismo
-// calendario de Google y la misma variable de entorno
-// (GOOGLE_CALENDAR_ID_ALEJANDRO) — solo cambia el nombre que se
-// muestra. Ver "Panel administrativo" en el README para el historial
-// completo de este cambio.
+// ahora Franklin — nombre de pila de Emanuel Noriega) reutilizando
+// siempre el mismo id, el mismo calendario de Google y la misma
+// variable de entorno (GOOGLE_CALENDAR_ID_ALEJANDRO) — solo cambia el
+// nombre que se muestra. Ver "Panel administrativo" en el README para
+// el historial completo de este cambio.
 export const BARBERS = [
   { id: "any", name: "Sin preferencia" },
-  { id: "alejandro", name: "Emanuel Noriega" },
-  { id: "camilo", name: "Camilo Torres" },
+  { id: "alejandro", name: "Franklin", photo: "/barbers/alejandro.jpg" },
+  { id: "camilo", name: "Camilo Torres", photo: "/barbers/camilo.jpg" },
 ];
 
 // "7:00 am" / "12:30 pm" — mismo formato que espera parseTimeLabel en

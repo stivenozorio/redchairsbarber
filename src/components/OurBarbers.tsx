@@ -1,13 +1,35 @@
+import { useState } from "react";
 import SectionHeading from "./SectionHeading";
 import Reveal from "./Reveal";
 import { BARBERS } from "../data/booking";
 
-/**
- * Visible sin cuenta: antes de registrarse, el cliente puede ver
- * quién lo va a atender. Sin fotos reales todavía (pendiente de que
- * la barbería las mande) — el círculo con la inicial es un placeholder
- * honesto, no una foto inventada.
- */
+/** Foto si existe y carga bien; si no, el círculo con la inicial como
+ * respaldo honesto (nunca una foto inventada). Mismo patrón que
+ * Avatar en GoogleReviewsCarousel. */
+function BarberPhoto({ name, photo }: { name: string; photo?: string }) {
+  const [broken, setBroken] = useState(false);
+
+  if (!photo || broken) {
+    return (
+      <div className="flex h-24 w-24 items-center justify-center rounded-full border border-gold/30 bg-charcoal font-display text-3xl text-gold">
+        {name.charAt(0)}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={photo}
+      alt={name}
+      width={96}
+      height={96}
+      onError={() => setBroken(true)}
+      className="h-24 w-24 rounded-full border border-gold/30 object-cover"
+    />
+  );
+}
+
+/** Visible sin cuenta: antes de registrarse, el cliente puede ver
+ * quién lo va a atender. */
 export default function OurBarbers() {
   const realBarbers = BARBERS.filter((b) => b.id !== "any");
 
@@ -23,9 +45,7 @@ export default function OurBarbers() {
           {realBarbers.map((barber, i) => (
             <Reveal key={barber.id} delay={i * 0.1}>
               <div className="card-lux flex flex-col items-center text-center">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full border border-gold/30 bg-charcoal font-display text-3xl text-gold">
-                  {barber.name.charAt(0)}
-                </div>
+                <BarberPhoto name={barber.name} photo={barber.photo} />
                 <h3 className="mt-6 font-display text-xl text-ivory">{barber.name}</h3>
                 <p className="mt-2 text-xs uppercase tracking-widest2 text-gold/70">Barbero</p>
               </div>

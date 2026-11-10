@@ -173,7 +173,7 @@ test("los niveles RED CLUB coinciden con lo definido para el club", () => {
 test("los barberos sembrados coinciden con los del código", () => {
   assert.ok(seed.includes("'camilo'"));
   assert.ok(seed.includes("'alejandro'"));
-  assert.ok(seed.includes("Emanuel Noriega"));
+  assert.ok(seed.includes("Franklin"));
 });
 
 // --- 0005: perfil enriquecido y diagnóstico ---
