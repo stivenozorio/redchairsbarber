@@ -33,6 +33,16 @@ export function formatCop(value: number): string {
   return `$${value.toLocaleString("es-CO")}`;
 }
 
+/** Mes y año en español, con la primera letra en mayúscula — ej.
+ * "Noviembre 2026". `month` es 0-indexado (0 = enero), como en Date. */
+export function formatMonthLabel(year: number, month: number): string {
+  const label = new Date(year, month, 1).toLocaleDateString("es-CO", {
+    month: "long",
+    year: "numeric",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 const MONTHS_ES = [
   "enero",
   "febrero",

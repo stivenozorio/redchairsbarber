@@ -11,7 +11,7 @@ import {
   FaUsers,
 } from "react-icons/fa";
 import { supabase } from "../../lib/supabase";
-import { formatCop, shiftDateStr, todayBogotaRange } from "../../lib/format";
+import { formatCop, formatMonthLabel, shiftDateStr, todayBogotaRange } from "../../lib/format";
 import {
   ALL_BOOKABLE_SERVICES,
   calculateRedemptionCost,
@@ -39,6 +39,38 @@ interface Counts {
   total: number;
   newWeek: number;
   newMonth: number;
+}
+
+interface MonthlyCount {
+  key: string;
+  label: string;
+  count: number;
+}
+
+const MONTHS_BACK = 6;
+
+/** Los últimos `n` meses como claves "YYYY-MM", en orden cronológico,
+ * terminando en el mes de `todayStr` (también "YYYY-MM-DD" o más). */
+function lastNMonthKeys(todayStr: string, n: number): string[] {
+  const [year, month] = todayStr.slice(0, 7).split("-").map(Number);
+  const keys: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const absoluteMonth = year * 12 + (month - 1) - i;
+    const y = Math.floor(absoluteMonth / 12);
+    const m = (absoluteMonth % 12) + 1;
+    keys.push(`${y}-${String(m).padStart(2, "0")}`);
+  }
+  return keys;
+}
+
+/** A qué mes de Bogotá corresponde un timestamp UTC. América/Bogotá es
+ * UTC-05:00 fijo todo el año (sin horario de verano), así que basta
+ * restar 5 horas antes de leer el año/mes — ver TIMEZONE en
+ * api/_lib/googleCalendar.ts para la misma suposición del lado del
+ * servidor. */
+function bogotaMonthKey(iso: string): string {
+  const shifted = new Date(new Date(iso).getTime() - 5 * 60 * 60 * 1000);
+  return shifted.toISOString().slice(0, 7);
 }
 
 interface RevenuePeriod {
@@ -78,6 +110,7 @@ interface PointsValue {
  */
 export default function AdminStatistics() {
   const [counts, setCounts] = useState<Counts | null>(null);
+  const [monthlyNewClients, setMonthlyNewClients] = useState<MonthlyCount[]>([]);
   const [topPoints, setTopPoints] = useState<MemberPointsRow[]>([]);
   const [closeToRedeem, setCloseToRedeem] = useState<MemberPointsRow[]>([]);
   const [pointsValue, setPointsValue] = useState<PointsValue | null>(null);
@@ -96,8 +129,10 @@ export default function AdminStatistics() {
     const { dateStr: today } = todayBogotaRange();
     const weekAgoISO = `${shiftDateStr(today, -7)}T00:00:00-05:00`;
     const monthStartISO = `${today.slice(0, 7)}-01T00:00:00-05:00`;
+    const monthKeys = lastNMonthKeys(today, MONTHS_BACK);
+    const monthsAgoISO = `${monthKeys[0]}-01T00:00:00-05:00`;
 
-    const [totalRes, weekRes, monthRes, topRes, nearRes, ledgerRes, completedRes] = await Promise.all([
+    const [totalRes, weekRes, monthRes, monthlyRes, topRes, nearRes, ledgerRes, completedRes] = await Promise.all([
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "client"),
       supabase
         .from("profiles")
@@ -109,6 +144,15 @@ export default function AdminStatistics() {
         .select("id", { count: "exact", head: true })
         .eq("role", "client")
         .gte("created_at", monthStartISO),
+      // Solo created_at: lo que hace falta para agrupar por mes en el
+      // navegador (mismo criterio de "no hace falta un agregado en la
+      // base todavía" que el resto de esta pantalla).
+      supabase
+        .from("profiles")
+        .select("created_at")
+        .eq("role", "client")
+        .gte("created_at", monthsAgoISO)
+        .limit(50000),
       supabase
         .from("club_member_summary")
         .select("user_id, full_name, email, points_balance, tier_name")
@@ -140,6 +184,7 @@ export default function AdminStatistics() {
       totalRes.error?.message ??
       weekRes.error?.message ??
       monthRes.error?.message ??
+      monthlyRes.error?.message ??
       topRes.error?.message ??
       nearRes.error?.message ??
       ledgerRes.error?.message ??
@@ -152,6 +197,19 @@ export default function AdminStatistics() {
       newWeek: weekRes.count ?? 0,
       newMonth: monthRes.count ?? 0,
     });
+    const monthlyRows = (monthlyRes.data as { created_at: string }[]) ?? [];
+    const countsByMonth = new Map<string, number>();
+    for (const row of monthlyRows) {
+      const key = bogotaMonthKey(row.created_at);
+      countsByMonth.set(key, (countsByMonth.get(key) ?? 0) + 1);
+    }
+    setMonthlyNewClients(
+      monthKeys.map((key) => {
+        const [y, m] = key.split("-").map(Number);
+        return { key, label: formatMonthLabel(y, m - 1), count: countsByMonth.get(key) ?? 0 };
+      })
+    );
+
     setTopPoints((topRes.data as MemberPointsRow[]) ?? []);
     setCloseToRedeem((nearRes.data as MemberPointsRow[]) ?? []);
 
@@ -221,6 +279,30 @@ export default function AdminStatistics() {
             <p className="mt-2 text-xs uppercase tracking-widest2 text-bone/60">{tile.label}</p>
           </div>
         ))}
+      </div>
+
+      <div className="mt-12">
+        <p className="eyebrow justify-start before:hidden">Nuevos socios por mes</p>
+        <p className="mt-3 text-xs text-bone/50">Últimos {MONTHS_BACK} meses, según cuándo se registró la cuenta.</p>
+        <div className="mt-5 space-y-3">
+          {(() => {
+            const max = Math.max(1, ...monthlyNewClients.map((m) => m.count));
+            return monthlyNewClients.map((m) => (
+              <div key={m.key} className="flex items-center gap-4">
+                <p className="w-32 shrink-0 text-xs uppercase tracking-widest2 text-bone/60 sm:w-44">
+                  {m.label}
+                </p>
+                <div className="h-6 flex-1 overflow-hidden rounded-sm bg-obsidian">
+                  <div
+                    className="h-full rounded-sm bg-gold/70 transition-all"
+                    style={{ width: `${(m.count / max) * 100}%` }}
+                  />
+                </div>
+                <p className="w-8 shrink-0 text-right font-display text-lg text-gold">{m.count}</p>
+              </div>
+            ));
+          })()}
+        </div>
       </div>
 
       <div className="mt-12">
